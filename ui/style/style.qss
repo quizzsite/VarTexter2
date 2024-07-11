@@ -1,0 +1,76 @@
+/* Общие стили */
+QWidget {
+    background-color: #272822;
+    color: #F8F8F2;
+    font-family: 'Courier New', monospace;
+}
+
+/* Меню */
+QMenuBar {
+    background-color: #3E3D32;
+    color: #F8F8F2;
+}
+
+QMenuBar::item {
+    background: #3E3D32;
+    color: #F8F8F2;
+    padding: 4px 10px;
+}
+
+QMenuBar::item:selected {
+    background: #272822;
+}
+
+QMenu {
+    background-color: #272822;
+    color: #F8F8F2;
+    border: 1px solid #3E3D32;
+}
+
+QMenu::item {
+    background-color: #272822;
+    padding: 4px 20px;
+}
+
+QMenu::item:selected {
+    background-color: #3E3D32;
+}
+
+/* Вкладки */
+QTabWidget::pane {
+    border: 1px solid #3E3D32;
+    background: #272822;
+}
+
+QTabBar::tab {
+    background: #3E3D32;
+    color: #F8F8F2;
+    padding: 10px;
+    margin: 1px;
+}
+
+QTabBar::tab:selected {
+    background: #272822;
+    border: 1px solid #3E3D32;
+}
+
+/* Текстовые поля */
+QTextEdit {
+    background-color: #272822;
+    color: #F8F8F2;
+    border: 1px solid #3E3D32;
+}
+
+/* Консольное окно (нижнее) */
+QTextEdit[readOnly="true"] {
+    background-color: #272822;
+    color: #A6E22E; /* Цвет текста для вывода консоли */
+    border: 1px solid #3E3D32;
+}
+
+/* Поля ввода (нижнее) */
+QTextEdit[readOnly="false"] {
+    background-color: #272822;
+    color: #F8F8F2;
+    border: 1px solid #3E3D32;
+}
