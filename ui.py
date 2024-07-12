@@ -81,11 +81,130 @@ class LineNumberWidget(QtWidgets.QTextBrowser):
         self.setStyleSheet(self.__style)
         self.setFixedWidth(self.__size*5)
 
+class MiniMap(QtWidgets.QTextEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setReadOnly(True)
+        self.setFixedWidth(150)  # Ширина миникарты
+        self.setTextInteractionFlags (QtCore.Qt.NoTextInteraction) 
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setCursor(QtCore.Qt.ArrowCursor)  # Устанавливаем стандартный указатель курсора
+        self._isDragging = False
+        self.setStyleSheet("QTextEdit { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")  # Изменяем цвет выделения текста
+
+    def setTextEdit(self, text_edit):
+        self.text_edit = text_edit
+        self.setHtml(self.text_edit.toHtml())
+        self.text_edit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
+        self.text_edit.verticalScrollBar().rangeChanged.connect(self.update_minimap)
+        self.text_edit.textChanged.connect(self.update_minimap)
+        self.setFontPointSize(1)  # Уменьшенный размер шрифта для миникарты
+        self.update_minimap()
+        self.viewport().update()
+    @pyqtSlot()
+    def sync_scroll(self):
+        max_value = self.text_edit.verticalScrollBar().maximum()
+        if max_value != 0:
+            value = self.text_edit.verticalScrollBar().value()
+            ratio = value / max_value
+            self.verticalScrollBar().setValue(int(ratio * self.verticalScrollBar().maximum()))
+        self.viewport().update()
+
+    @pyqtSlot()
+    def update_minimap(self):
+        self.setPlainText(self.text_edit.toPlainText())
+        self.sync_scroll()
+        self.viewport().update()
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            self._isDragging = True
+            self.sync_scroll_from_position(event.pos())
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._isDragging:
+            self.sync_scroll_from_position(event.pos())
+            self.textCursor().clearSelection()
+        super().mouseMoveEvent(event)
+        self.textCursor().clearSelection()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            self.textCursor().clearSelection()
+            self._isDragging = False
+        super().mouseReleaseEvent(event)
+
+    def sync_scroll_from_position(self, pos):
+        if self.viewport().height() != 0:
+            ratio = pos.y() / self.viewport().height()
+            value = int(ratio * self.text_edit.verticalScrollBar().maximum())
+            self.text_edit.verticalScrollBar().setValue(value)
+            self.textCursor().clearSelection()
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        scroll_bar = self.text_edit.verticalScrollBar()
+        scroll_bar.setValue(int(scroll_bar.value() - delta / 1.5))
+
+    def resizeEvent(self, event):
+        self.update_minimap()
+        super().resizeEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.text_edit is None:
+            return
+
+        viewport_rect = self.text_edit.viewport().rect()
+        content_rect = self.text_edit.document().documentLayout().blockBoundingRect(self.text_edit.document().firstBlock()).united(
+            self.text_edit.document().documentLayout().blockBoundingRect(self.text_edit.document().lastBlock())
+        )
+
+        viewport_height = self.viewport().height()
+        content_height = content_rect.height()
+        if content_height == 0:
+            return
+        scale_factor = viewport_height / content_height
+
+        visible_rect_height = viewport_rect.height() * scale_factor
+        visible_rect_top = self.text_edit.verticalScrollBar().value() * scale_factor
+
+        visible_rect = QtCore.QRectF(
+            0,
+            visible_rect_top,
+            self.viewport().width(),
+            visible_rect_height
+        )
+
+        painter = QtGui.QPainter(self.viewport())
+        painter.setBrush(QtGui.QColor(0, 0, 255, 50))
+        painter.setPen(QtGui.QColor(0, 0, 255))
+        painter.drawRect(visible_rect)
+
+
 class TextEdit(QtWidgets.QTextEdit):
     def __init__(self, parent):
         super().__init__()
         self.textChanged.connect(self.__line_widget_line_count_changed)
         self.lineWidget = LineNumberWidget(self)
+
+        self.minimap = MiniMap(self)
+        self.minimap.setTextEdit(self)
+
+        self.layout = QtWidgets.QHBoxLayout()
+        self.layout.addWidget(self.lineWidget)
+        self.layout.addWidget(self)
+
+        self.minimap_scroll_area = QtWidgets.QScrollArea()
+        self.minimap_scroll_area.setWidget(self.minimap)
+        self.minimap_scroll_area.setFixedWidth(150)
+        self.minimap_scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.minimap_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+
+        self.layout.addWidget(self.minimap_scroll_area)
+
     def __line_widget_line_count_changed(self):
         if self.lineWidget:
             n = int(self.document().lineCount())
@@ -216,7 +335,7 @@ class LoadingOverlay(QtWidgets.QWidget):
         self.layout.addWidget(self.label)
 
         self.progressBar = QtWidgets.QProgressBar(self)
-        self.progressBar.setRange(0, 0)  # Indeterminate mode
+        self.progressBar.setRange(0, 0)
         self.layout.addWidget(self.progressBar)
 
 class Ui_MainWindow(object):
@@ -304,11 +423,7 @@ class Ui_MainWindow(object):
         self.tab.textEdit.setText(text)
         self.tab.textEdit.setObjectName("textEdit")
 
-        lay = QtWidgets.QHBoxLayout()
-        lay.addWidget(self.tab.textEdit.lineWidget)
-        lay.addWidget(self.tab.textEdit)
-        
-        self.verticalLayout.addLayout(lay)
+        self.verticalLayout.addLayout(self.tab.textEdit.layout)
 
         self.tabWidget.addTab(self.tab, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
