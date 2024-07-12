@@ -12,7 +12,84 @@ import charset_normalizer as chardet
 class DWMWINDOWATTRIBUTE(Enum):
     DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
+
+class LineNumberWidget(QtWidgets.QTextBrowser):
+    def __init__(self, widget):
+        super().__init__()
+        self.__initUi(widget)
+
+    def __initUi(self, widget):
+        self.__lineCount = widget.document().lineCount()
+        self.__size = int(widget.font().pointSizeF())
+        self.__styleInit()
+
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setTextInteractionFlags(QtCore.Qt.NoTextInteraction)
+
+        self.verticalScrollBar().setEnabled(False)
+
+        widget.verticalScrollBar().valueChanged.connect(self.__changeLineWidgetScrollAsTargetedWidgetScrollChanged)
+
+        self.__initLineCount()
+
+    def __changeLineWidgetScrollAsTargetedWidgetScrollChanged(self, v):
+        self.verticalScrollBar().setValue(v)
+
+    def __initLineCount(self):
+        for n in range(1, self.__lineCount+1):
+            self.append(str(n))
+
+    def changeLineCount(self, n):
+        max_one = max(self.__lineCount, n)
+        diff = n-self.__lineCount
+        if max_one == self.__lineCount:
+            first_v = self.verticalScrollBar().value()
+            for i in range(self.__lineCount, self.__lineCount + diff, -1):
+                self.moveCursor(QtGui.QTextCursor.End, QtGui.QTextCursor.MoveAnchor)
+                self.moveCursor(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.MoveAnchor)
+                self.moveCursor(QtGui.QTextCursor.End, QtGui.QTextCursor.KeepAnchor)
+                self.textCursor().removeSelectedText()
+                self.textCursor().deletePreviousChar()
+            last_v = self.verticalScrollBar().value()
+            if abs(first_v-last_v) != 2:
+                self.verticalScrollBar().setValue(first_v)
+        else:
+            for i in range(self.__lineCount, self.__lineCount + diff, 1):
+                self.append(str(i + 1))
+            self.moveCursor(QtGui.QTextCursor.Start, QtGui.QTextCursor.MoveAnchor)
+            
+
+        self.__lineCount = n
+
+    def setValue(self, v):
+        self.verticalScrollBar().setValue(v)
+
+    def setFontSize(self, s: float):
+        self.__size = int(s)
+        self.__styleInit()
+
+    def __styleInit(self):
+        self.__style = f'''
+                       QTextBrowser 
+                       {{ 
+                       background: transparent; 
+                       border: none; 
+                       color: #AAA; 
+                       font: {self.__size}pt;
+                       }}
+                       '''
+        self.setStyleSheet(self.__style)
+        self.setFixedWidth(self.__size*5)
+
 class TextEdit(QtWidgets.QTextEdit):
+    def __init__(self, parent):
+        super().__init__()
+        self.textChanged.connect(self.__line_widget_line_count_changed)
+        self.lineWidget = LineNumberWidget(self)
+    def __line_widget_line_count_changed(self):
+        if self.lineWidget:
+            n = int(self.document().lineCount())
+            self.lineWidget.changeLineCount(n)
     def canInsertFromMimeData(self, source):
         if source.hasImage():
             return True
@@ -83,33 +160,65 @@ class TabWidget (QtWidgets.QTabWidget):
                 tab.deleteLater()
                 self.removeTab(currentIndex)
 
-class WorkerSignals(QtCore.QObject):
-    finished = pyqtSignal()
-    error = pyqtSignal(tuple)
-    result = pyqtSignal(object)
+class FileReadThread(QtCore.QThread):
+    chunkRead = pyqtSignal(str)
+    finishedReading = pyqtSignal()
 
-class Worker(QtCore.QRunnable):
-    def __init__(self, fn, *args, **kwargs):
-        super(Worker, self).__init__()
-        self.fn = fn
-        self.args = args
-        self.kwargs = kwargs
-        self.signals = WorkerSignals()
+    def __init__(self, file_path, tab, parent=None):
+        super(FileReadThread, self).__init__(parent)
+        self.file_path = file_path
+        self.tab = tab
+        self._is_running = True
 
-    @pyqtSlot()
     def run(self):
-        try:
-            result = self.fn(
-                *self.args, **self.kwargs
-            )
-        except:
-            traceback.print_exc()
-            exctype, value = sys.exc_info()[:2]
-            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        filep = open(self.file_path, 'rb')
+        m = chardet.detect(filep.read(1024*3))
+        fencoding = m["encoding"]
+        print(fencoding)
+        filep.close()
+        if fencoding:
+            file = open(self.file_path, 'r', encoding=fencoding)
+            self.tab.encoding = fencoding.upper()
+            while self._is_running:
+                chunk = file.read(1024*400)
+                if not chunk:
+                    break
+                self.chunkRead.emit(str(chunk))
+                self.msleep(3)
+            file.close()
+            self.finishedReading.emit()
         else:
-            self.signals.result.emit(result)
-        finally:
-            self.signals.finished.emit()
+            file = open(self.file_path, 'rb', encoding=fencoding)
+            self.tab.encoding = "BYTES"
+            while self._is_running:
+                chunk = file.read(1024*400)
+                if not chunk:
+                    break
+                self.chunkRead.emit(str(chunk))
+                self.msleep(3)
+            file.close()
+            self.finishedReading.emit()
+
+    def stop(self):
+        self._is_running = False
+
+class LoadingOverlay(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: white;")
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+
+        self.layout = QtWidgets.QVBoxLayout(self)
+        self.layout.setAlignment(QtCore.Qt.AlignCenter)
+
+        self.label = QtWidgets.QLabel("Loading, please wait...")
+        self.layout.addWidget(self.label)
+
+        self.progressBar = QtWidgets.QProgressBar(self)
+        self.progressBar.setRange(0, 0)  # Indeterminate mode
+        self.layout.addWidget(self.progressBar)
+
 class Ui_MainWindow(object):
     windowLoaded = QtCore.pyqtSignal()
     onKeyPress = QtCore.pyqtSignal(int)
@@ -120,6 +229,7 @@ class Ui_MainWindow(object):
         self.MainWindow.resize(800, 600)
         self.MainWindow.setStyleSheet(open('ui/style/style.qss', 'r').read())
 
+        self.thread = None
         self.recentFiles = eval(open("recent.f", "r+").read()) or []
 
         self.centralwidget = QtWidgets.QWidget(parent=self.MainWindow)
@@ -161,6 +271,9 @@ class Ui_MainWindow(object):
         self.statusbar.addPermanentWidget(self.encodingLabel)
         self.MainWindow.setStatusBar(self.statusbar)
 
+        self.loadingOverlay = LoadingOverlay(self.centralwidget)
+        self.loadingOverlay.hide()
+
         self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self.MainWindow)
 
@@ -188,11 +301,14 @@ class Ui_MainWindow(object):
         self.tab.textEdit = TextEdit(parent=self.tab)
         self.tab.textEdit.setReadOnly(False)
         
-        worker = Worker(lambda: self.tab.textEdit.setText(text))
-        worker.signals.finished.connect(lambda: self.tab.textEdit.setReadOnly(editable))
+        self.tab.textEdit.setText(text)
         self.tab.textEdit.setObjectName("textEdit")
+
+        lay = QtWidgets.QHBoxLayout()
+        lay.addWidget(self.tab.textEdit.lineWidget)
+        lay.addWidget(self.tab.textEdit)
         
-        self.verticalLayout.addWidget(self.tab.textEdit)
+        self.verticalLayout.addLayout(lay)
 
         self.tabWidget.addTab(self.tab, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
@@ -267,33 +383,50 @@ class Ui_MainWindow(object):
             recLog.write(str(self.recentFiles))
             recLog.close()
 
-    def openFile(self, f=None, ft="normal", encoding="utf-8"):
-        files = f or self.openFileDialog()[0]
-        for f in files:
-            if ft == "normal":
-                try:
-                    file = open(f, 'rb')
-                    m = chardet.detect(file.read())
-                    fencoding = m["encoding"]
-                    file.close()
-                    file = open(f, "r", encoding=fencoding or encoding)
-                    editable = True
-                    tab = self.addTab(name=os.path.basename(f), text=str(file.read()), editable=editable)
-                    tab.file = f
-                    tab.encoding = fencoding.upper() or encoding.upper()
-                    self.tabWidget.setCurrentIndex(-1)
-                    file.close()
-                except:
-                    self.openFile([f], ft="bytes")
-            elif ft == "bytes":
-                file = open(f, "rb")
-                editable = False
-                tab = self.addTab(name=os.path.basename(f), text=str(file.read()), editable=editable)
-                tab.file = f
-                tab.encoding = "BYTES"
-                tab.canSave = False
-                self.tabWidget.setCurrentIndex(-1)
-                file.close()
+    # def openFile(self, f=None, ft="normal", encoding="utf-8"):
+    #     files = f or self.openFileDialog()[0]
+    #     for f in files:
+    #         if ft == "normal":
+    #             try:
+    #                 file = open(f, 'rb')
+    #                 m = chardet.detect(file.read())
+    #                 fencoding = m["encoding"]
+    #                 file.close()
+    #                 file = open(f, "r", encoding=fencoding or encoding)
+    #                 editable = True
+    #                 tab = self.addTab(name=os.path.basename(f), text=str(file.read()), editable=editable)
+    #                 tab.file = f
+    #                 tab.encoding = fencoding.upper() or encoding.upper()
+    #                 self.tabWidget.setCurrentIndex(-1)
+    #                 file.close()
+    #             except:
+    #                 self.openFile([f], ft="bytes")
+    #         elif ft == "bytes":
+    #             file = open(f, "rb")
+    #             editable = False
+    #             tab = self.addTab(name=os.path.basename(f), text=str(file.read()), editable=editable)
+    #             tab.file = f
+    #             tab.encoding = "BYTES"
+    #             tab.canSave = False
+    #             self.tabWidget.setCurrentIndex(-1)
+    #             file.close()
+    def openFile(self, filePath=None, encoding=None):
+        if not filePath:
+            filePath, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Open File", "", "All Files (*);;Text Files (*.txt)")
+            if not filePath:
+                return
+        for file in filePath:
+            encoding = encoding or 'utf-8'
+            tab = self.addTab(name=file, editable=True)
+
+            self.loadingOverlay.setGeometry(self.centralWidget().rect())
+            self.loadingOverlay.show()
+
+            self.thread = FileReadThread(file, tab)
+            self.thread.chunkRead.connect(tab.textEdit.append)
+            self.thread.finishedReading.connect(self.loadingOverlay.hide)
+            self.thread.finishedReading.connect(lambda: self.encodingLabel.setText(encoding))
+            self.thread.start()
 
     def saveFile(self):
         pass
