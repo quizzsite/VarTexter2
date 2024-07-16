@@ -12,7 +12,6 @@ import charset_normalizer as chardet
 class DWMWINDOWATTRIBUTE(Enum):
     DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
-
 class LineNumberWidget(QtWidgets.QTextBrowser):
     def __init__(self, widget):
         super().__init__()
@@ -85,13 +84,13 @@ class MiniMap(QtWidgets.QTextEdit):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setReadOnly(True)
-        self.setFixedWidth(150)  # Ширина миникарты
+        self.setFixedWidth(150)
         self.setTextInteractionFlags (QtCore.Qt.NoTextInteraction) 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setCursor(QtCore.Qt.ArrowCursor)  # Устанавливаем стандартный указатель курсора
+        self.setCursor(QtCore.Qt.ArrowCursor)
         self._isDragging = False
-        self.setStyleSheet("QTextEdit { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")  # Изменяем цвет выделения текста
+        self.setStyleSheet("QTextEdit { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")
 
     def setTextEdit(self, text_edit):
         self.text_edit = text_edit
@@ -99,7 +98,7 @@ class MiniMap(QtWidgets.QTextEdit):
         self.text_edit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
         self.text_edit.verticalScrollBar().rangeChanged.connect(self.update_minimap)
         self.text_edit.textChanged.connect(self.update_minimap)
-        self.setFontPointSize(1)  # Уменьшенный размер шрифта для миникарты
+        self.setFontPointSize(1)
         self.update_minimap()
         self.viewport().update()
     @pyqtSlot()
@@ -233,7 +232,7 @@ class TextEdit(QtWidgets.QTextEdit):
 
         if source.hasImage():
             image = source.imageData()
-            img_path = os.path.join(self._image_folder, f'{uuid.uuid4()}.jpg')  # TODO ext
+            img_path = os.path.join(self._image_folder, f'{uuid.uuid4()}.jpg')
             image.save(os.path.join(img_path))
             u = QtGui.QUrl('file:///' + os.path.join(os.getcwd(), img_path))
             self._insert_img(u, document, cursor)
