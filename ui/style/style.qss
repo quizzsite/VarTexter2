@@ -41,6 +41,15 @@ QTabBar::tab:selected {
 
 QTabBar::close-button {
     image: url(ui/res/x-square-fill.svg);
+    width: 1px;
+    height: 1px;
+    color: white;
+}
+
+QTabBar::close-button::hover {
+    image: url(ui/res/x-square-fill-hover.svg);
+    width: 10px;
+    height: 10px;
     color: white;
 }
 
@@ -267,4 +276,52 @@ QWidget {
 
 QFrame {
     background-color: #272822;
+}
+
+QTreeView {
+    background-color: #282c34;
+    color: #D3D3D3;
+    border: 1px solid #3E3D32;
+    alternate-background-color: #323842;
+    selection-background-color: #3E3D32;
+    selection-color: #D3D3D3;
+}
+
+QTreeView::item {
+    border: 1px solid transparent;
+    padding: 5px;
+}
+
+QTreeView::item:hover {
+    background-color: #323842;
+    border: 1px solid #D3D3D3;
+    border-radius: 3px;
+    color: #D3D3D3;
+}
+
+QTreeView::item:selected {
+    background-color: #3E3D32;
+    border: none;
+    color: #D3D3D3;
+}
+
+QFileSystemModel {
+    color: #D3D3D3;
+    background-color: #282c34;
+}
+
+QHeaderView::section {
+    background-color: #2d2d2d;
+    color: #D3D3D3;
+    padding: 4px;
+    border: 1px solid #3E3D32;
+    border-radius: 4px;
+}
+
+QHeaderView::section:hover {
+    background-color: #3e3d3d;
+}
+
+QHeaderView::section:pressed {
+    background-color: #4c4a4a;
 }
