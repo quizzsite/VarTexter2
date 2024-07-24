@@ -1,14 +1,10 @@
-import sys, uuid, json, traceback, psutil, time
+import sys, importlib, json, configparser
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
 import pyqtgraph as pg
 from datetime import datetime
-from plugs import *
 from ctypes import byref, c_bool, sizeof, windll
 from ctypes.wintypes import BOOL, MSG
 from winreg import QueryValueEx, ConnectRegistry, HKEY_CURRENT_USER, OpenKey, KEY_READ
-from enum import Enum
-import charset_normalizer as chardet
 
 from addit import *
 
@@ -280,11 +276,26 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.setupUi(self)
         self.windowInitialize()
-        proxy = WindowProxy(self)
-        plugMan = PluginManager("plugins", proxy)
-        plugMan.load_plugins()
-        self.windowLoaded.emit()
+        self.menu_map = {}
+        self.commands = {}
+        self.context_menu = QtWidgets.QMenu(self)
+        # self.plugin_menu = QtWidgets.QMenu("Plugins", self)
+        self.pl = PluginManager("plugins", self)
+        # self.menuBar().addMenu(self.plugin_menu)
+        
+        self.constants = {
+            "platform": StaticInfo.get_platform(),
+            "basedir": StaticInfo.get_basedir(),
+            "filedir": StaticInfo.get_filedir(__file__),
+            "username": os.getlogin()
+        }
 
+        self.parse_menu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
+        self.parse_menu(json.load(open("ui/Main.cm", "r+")), self.context_menu)
+        for shortcut in json.load(open("ui/Main.sc", "r+")):
+            self.create_shortcut(shortcut) 
+
+        self.pl.load_plugins()
     def __initTheme(self):
         self.__setCurrentWindowsTheme()
 
@@ -318,6 +329,116 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def allowDetectingTheme(self, f: bool):
         self.__detect_theme_flag = f
+
+
+    def load_ini_file(self, ini_path):
+        self.ini_path = ini_path
+        config = configparser.ConfigParser()
+        config.read(self.ini_path)
+
+        self.name = config.get('DEFAULT', 'name', fallback='Unknown Plugin')
+        self.version = config.get('DEFAULT', 'version', fallback='1.0')
+        self.main_script = config.get('DEFAULT', 'main', fallback='')
+        self.plugInfo = {"name": self.name, "version": self.version, "path": ini_path, "main": self.main_script}
+        self.cm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'cm', fallback=''))) if config.get('DEFAULT', 'cm', fallback='') else ""
+        self.mb = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'mb', fallback=''))) if config.get('DEFAULT', 'mb', fallback='') else ""
+        self.sc = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'sc', fallback=''))) if config.get('DEFAULT', 'sc', fallback='') else ""
+        return self.plugInfo
+
+    def regAll(self):
+        if self.mb:
+            self.parse_menu(json.load(open(self.mb, "r+")), self.menuBar(), pluginPath=self.ini_path)
+            self.plugInfo["mb"] = self.mb
+
+        if self.cm:
+            self.parse_menu(json.load(open(self.cm, "r+")), self.context_menu, pluginPath=self.ini_path)
+            self.plugInfo["cm"] = self.cm
+
+        if self.sc:
+            for shortcut in json.load(open(self.sc, "r+")):
+                self.create_shortcut(shortcut)            
+            self.plugInfo["sc"] = self.sc
+
+        # self.addPlugin(self.name, self.version)
+
+    def contextMenuEvent(self, event):
+        if self.context_menu:
+            self.context_menu.exec_(self.mapToGlobal(event.pos()))
+
+    def create_shortcut(self, shortcut_info):
+        keys = shortcut_info.get("keys", [])
+        command = shortcut_info.get("command")
+        args = shortcut_info.get("args", {})
+        
+        if not keys or not command:
+            return
+        
+        key_sequence = QtGui.QKeySequence(' '.join(keys))
+        action = QtWidgets.QAction(self)
+        action.setShortcut(key_sequence)
+        self.registerCommand(command)
+        action.triggered.connect(lambda: self.execute_command(command, args))
+        self.addAction(action)
+
+    def parse_menu(self, data, parent, pluginPath=None):
+        if isinstance(data, list):
+            for item in data:
+                if 'id' in item:
+                    menu = self.menu_map.get(item['id'])
+                    if menu is None:
+                        menu = QtWidgets.QMenu(item.get('caption', 'Unnamed'), self)
+                        self.menu_map[item['id']] = menu
+                        parent.addMenu(menu)
+                    if 'children' in item:
+                        self.parse_menu(item['children'], menu, pluginPath=pluginPath)
+                else:
+                    if 'children' in item:
+                        submenu = QtWidgets.QMenu(item.get('caption', 'Unnamed'), self)
+                        self.parse_menu(item['children'], submenu)
+                        parent.addMenu(submenu)
+                    else:
+                        if 'caption' in item and item['caption'] == "-":
+                            parent.addSeparator()
+                        else:
+                            action = QtWidgets.QAction(item.get('caption', 'Unnamed'), self)
+                            if 'command' in item:
+                                self.registerCommand(command=item['command'], pluginPath=pluginPath)
+                                action.triggered.connect(lambda checked, cmd=item['command'], args=item.get('args', {}): self.execute_command(cmd, args))
+                            parent.addAction(action)
+                            if 'shortcut' in item:
+                                action.setShortcut(QtGui.QKeySequence(item['shortcut']))
+        elif isinstance(data, dict):
+            self.parse_menu([data], parent)
+
+    def execute_command(self, command, *args):
+        if self.commands.get(command): self.commands.get(command).get("command")()
+
+    def addPlugin(self, name, version):
+        plugin_info = f"{name} v{version}"
+        self.plugin_menu.addAction(QtWidgets.QAction(plugin_info, self))
+    
+    def registerCommand(self, command, pluginPath=None):
+        commandN = command
+        print(commandN)
+        if pluginPath:
+            for plugin in self.pl.plugins:
+                if plugin.get("path") == pluginPath:
+                    self.command = {}
+                    sys.path.insert(0, os.path.dirname(plugin.get("path")))
+                    main_module = plugin.get("main")
+                    if main_module.endswith('.py'):
+                        main_module = main_module[:-3]
+                    plug = importlib.import_module(main_module)
+                    command = getattr(plug, commandN)
+                    self.command["command"] = command
+                    self.command["plugin"] = plug
+                    self.commands[commandN] = self.command
+        else:
+            self.command = {}
+            command = getattr(self, commandN)
+            self.command["command"] = command
+            self.command["plugin"] = None
+            self.commands[commandN] = self.command
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

@@ -1,12 +1,6 @@
-import sys, uuid, json, traceback, psutil, time
+import sys, uuid, platform, os
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
-import pyqtgraph as pg
-from datetime import datetime
-from plugs import *
-from ctypes import byref, c_bool, sizeof, windll
-from ctypes.wintypes import BOOL, MSG
-from winreg import QueryValueEx, ConnectRegistry, HKEY_CURRENT_USER, OpenKey, KEY_READ
 from enum import Enum
 import charset_normalizer as chardet
 
@@ -398,3 +392,55 @@ class LoadingOverlay(QtWidgets.QWidget):
         self.progressBar = QtWidgets.QProgressBar(self)
         self.progressBar.setRange(0, 0)
         self.layout.addWidget(self.progressBar)
+
+class PluginManager:
+    def __init__(self, plugin_directory: str, w):
+        self.plugin_directory = plugin_directory
+        self.window = w
+        self.plugins = []
+    
+    def load_plugins(self): self._load_plugins()
+
+    def _load_plugins(self):
+        try:
+            sys.path.insert(0, self.plugin_directory)
+            for plugDir in os.listdir(self.plugin_directory):
+                if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
+                    plugInfo = self.window.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
+                    self.plugins.append(plugInfo)
+                    self.window.regAll()
+        finally:
+            sys.path.pop(0)
+
+class StaticInfo:
+    @staticmethod
+    def get_platform():
+        current_platform = platform.system()
+        if current_platform == "Darwin":
+            return "OSX"
+        return current_platform
+    
+    @staticmethod
+    def get_basedir():
+        return os.path.dirname(os.path.abspath(__file__))
+    
+    @staticmethod
+    def get_filedir(filepath):
+        return os.path.dirname(os.path.abspath(filepath))
+
+    @staticmethod
+    def replace_consts(data, constants):
+        if isinstance(data, dict):
+            return {key: StaticInfo.replace_consts(value, constants) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [StaticInfo.replace_consts(item, constants) for item in data]
+        elif isinstance(data, str):
+            try:
+                return data.format(**constants)
+            except KeyError as e:
+                print(f"Missing key in constants: {e}")
+                return data
+            except ValueError:
+                return data.replace('{', '{{').replace('}', '}}')
+        return data
+
