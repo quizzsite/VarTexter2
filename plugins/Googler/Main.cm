@@ -1,0 +1,5 @@
+{
+    "caption": "Googler",
+    "command": "google",
+    "args": "textSelection"
+}

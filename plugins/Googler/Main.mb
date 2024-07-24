@@ -1,0 +1,12 @@
+[
+    {
+        "caption": "Tools",
+        "id": "tools",
+        "children": [
+            {
+                "caption": "Googler",
+                "command": "start"
+            }
+        ]
+    }
+]

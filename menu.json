@@ -1,0 +1,85 @@
+[
+    {
+        "caption": "File",
+        "id": "file",
+        "children": [
+            {
+                "caption": "{platform}",
+                "command": "new_file",
+                "args": {"file": "untitled.txt"}
+            },
+            {
+                "caption": "{basedir}",
+                "command": "open_file",
+                "args": {"file": "example.txt"}
+            },
+            {
+                "caption": "Savwefwefe",
+                "command": "save_file",
+                "args": {"file": "current.txt"}
+            },
+            {
+                "caption": "Exit",
+                "command": "exit_app"
+            }
+        ]
+    },
+    {
+        "caption": "Edit",
+        "id": "edit",
+        "children": [
+            {
+                "caption": "Undo",
+                "command": "undo"
+            },
+            {
+                "caption": "Redo",
+                "command": "redo"
+            },
+            {
+                "caption": "-",
+                "id": "separator"
+            },
+            {
+                "caption": "Copy",
+                "command": "copy"
+            },
+            {
+                "caption": "Paste",
+                "command": "paste"
+            }
+        ]
+    },
+    {
+        "caption": "View",
+        "id": "view",
+        "children": [
+            {
+                "caption": "Toggle Fullscreen",
+                "command": "toggle_fullscreen"
+            },
+            {
+                "caption": "Zoom In",
+                "command": "zoom_in"
+            },
+            {
+                "caption": "Zoom Out",
+                "command": "zoom_out"
+            }
+        ]
+    },
+    {
+        "caption": "Help",
+        "id": "help",
+        "children": [
+            {
+                "caption": "About",
+                "command": "about_app"
+            },
+            {
+                "caption": "Documentation",
+                "command": "open_documentation"
+            }
+        ]
+    }
+]
