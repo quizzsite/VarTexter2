@@ -5,58 +5,5 @@
         "args": {
             "target": "file"
         }
-    },
-    {
-        "caption": "-"
-    },
-    {
-        "caption": "Edit",
-        "children": [
-            {
-                "caption": "Cut",
-                "command": "cut"
-            },
-            {
-                "caption": "Copy",
-                "command": "copy"
-            },
-            {
-                "caption": "Paste",
-                "command": "paste"
-            }
-        ]
-    },
-    {
-        "caption": "-"
-    },
-    {
-        "caption": "Search",
-        "children": [
-            {
-                "caption": "Google",
-                "command": "google",
-                "args": {
-                    "source": "textSelection"
-                }
-            },
-            {
-                "caption": "Bing",
-                "command": "bing",
-                "args": {
-                    "source": "textSelection"
-                }
-            }
-        ]
-    },
-    {
-        "caption": "-"
-    },
-    {
-        "caption": "Translate",
-        "command": "translate",
-        "args": {
-            "source": "textSelection",
-            "language": "en"
-        }
     }
 ]

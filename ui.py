@@ -87,7 +87,7 @@ class Ui_MainWindow(object):
         self.frame.setObjectName("frame")
         self.verticalLayout.addWidget(self.frame)
         
-        self.tab.textEdit = TextEdit(parent=self.tab)
+        self.tab.textEdit = TextEdit(self.MainWindow)
         self.tab.textEdit.setReadOnly(False)
         
         self.tab.textEdit.textChanged.connect(self.textChngd)
@@ -117,6 +117,9 @@ class Ui_MainWindow(object):
         tab = self.tabWidget.currentWidget()
         tab.saved = False
         self.checkTabSaved(tab)
+
+    def currentEdtr(self):
+        return self.tabWidget.widget().textEdit
 
     def loadMenuBar(self, e=False):
         pass
@@ -269,20 +272,7 @@ class Ui_MainWindow(object):
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
-        dwmapi = windll.LoadLibrary("dwmapi")
-        self.__dwmSetWindowAttribute = dwmapi.DwmSetWindowAttribute
-        self.__detect_theme_flag = True
-        # self.__initTheme()
 
-        self.setupUi(self)
-        self.windowInitialize()
-        self.menu_map = {}
-        self.commands = {}
-        self.context_menu = QtWidgets.QMenu(self)
-        # self.plugin_menu = QtWidgets.QMenu("Plugins", self)
-        self.pl = PluginManager("plugins", self)
-        # self.menuBar().addMenu(self.plugin_menu)
-        
         self.constants = {
             "platform": StaticInfo.get_platform(),
             "basedir": StaticInfo.get_basedir(),
@@ -290,8 +280,24 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             "username": os.getlogin()
         }
 
+        dwmapi = windll.LoadLibrary("dwmapi")
+        self.__dwmSetWindowAttribute = dwmapi.DwmSetWindowAttribute
+        self.__detect_theme_flag = True
+        if self.constants["platform"] == "Windows": self.__initTheme()
+
+        self.contextMenu = QtWidgets.QMenu(self)
+        self.textContextMenu = QtWidgets.QMenu(self)
+        
+        self.setupUi(self)
+        self.windowInitialize()
+        self.menu_map = {}
+        self.commands = {}
+        # self.plugin_menu = QtWidgets.QMenu("Plugins", self)
+        self.pl = PluginManager("plugins", self)
+        # self.menuBar().addMenu(self.plugin_menu)
+        
         self.parse_menu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
-        self.parse_menu(json.load(open("ui/Main.cm", "r+")), self.context_menu)
+        self.parse_menu(json.load(open("ui/Main.cm", "r+")), self.contextMenu)
         for shortcut in json.load(open("ui/Main.sc", "r+")):
             self.create_shortcut(shortcut) 
 
@@ -341,6 +347,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.main_script = config.get('DEFAULT', 'main', fallback='')
         self.plugInfo = {"name": self.name, "version": self.version, "path": ini_path, "main": self.main_script}
         self.cm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'cm', fallback=''))) if config.get('DEFAULT', 'cm', fallback='') else ""
+        self.tcm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'tcm', fallback=''))) if config.get('DEFAULT', 'tcm', fallback='') else ""
         self.mb = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'mb', fallback=''))) if config.get('DEFAULT', 'mb', fallback='') else ""
         self.sc = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'sc', fallback=''))) if config.get('DEFAULT', 'sc', fallback='') else ""
         return self.plugInfo
@@ -351,8 +358,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.plugInfo["mb"] = self.mb
 
         if self.cm:
-            self.parse_menu(json.load(open(self.cm, "r+")), self.context_menu, pluginPath=self.ini_path)
+            self.parse_menu(json.load(open(self.cm, "r+")), self.contextMenu, pluginPath=self.ini_path)
             self.plugInfo["cm"] = self.cm
+
+        if self.tcm:
+            self.parse_menu(json.load(open(self.tcm, "r+")), self.textContextMenu, pluginPath=self.ini_path)
+            self.plugInfo["tcm"] = self.tcm
 
         if self.sc:
             for shortcut in json.load(open(self.sc, "r+")):
@@ -362,8 +373,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # self.addPlugin(self.name, self.version)
 
     def contextMenuEvent(self, event):
-        if self.context_menu:
-            self.context_menu.exec_(self.mapToGlobal(event.pos()))
+        if self.contextMenu:
+            self.contextMenu.exec_(self.mapToGlobal(event.pos()))
 
     def create_shortcut(self, shortcut_info):
         keys = shortcut_info.get("keys", [])
@@ -419,7 +430,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     
     def registerCommand(self, command, pluginPath=None):
         commandN = command
-        print(commandN)
         if pluginPath:
             for plugin in self.pl.plugins:
                 if plugin.get("path") == pluginPath:

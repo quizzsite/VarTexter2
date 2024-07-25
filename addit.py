@@ -167,8 +167,12 @@ class MiniMap(QtWidgets.QTextEdit):
 
 
 class TextEdit(QtWidgets.QTextEdit):
-    def __init__(self, parent):
+    def __init__(self, mw):
         super().__init__()
+
+        self.mw = mw
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.contextMenu)
         self.lineWidget = LineNumberWidget(self)
 
         self.minimap = MiniMap(self)
@@ -185,6 +189,9 @@ class TextEdit(QtWidgets.QTextEdit):
         self.minimap_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
 
         self.layout.addWidget(self.minimap_scroll_area)
+
+    def contextMenu(self, pos):
+        self.mw.textContextMenu.exec_(self.mapToGlobal(pos))
 
     def __line_widget_line_count_changed(self):
         if self.lineWidget:
