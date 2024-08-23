@@ -1,4 +1,4 @@
-import sys, importlib, json, configparser
+import sys, importlib, json, configparser, platform
 from PyQt5 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 from datetime import datetime
@@ -8,15 +8,38 @@ from winreg import QueryValueEx, ConnectRegistry, HKEY_CURRENT_USER, OpenKey, KE
 
 from addit import *
 
+class PluginManager:
+    def __init__(self, plugin_directory: str, w):
+        self.plugin_directory = plugin_directory
+        self.window = w
+        self.plugins = []
+    
+    def load_plugins(self): self._load_plugins()
+
+    def _load_plugins(self):
+        try:
+            sys.path.insert(0, self.plugin_directory)
+            for plugDir in os.listdir(self.plugin_directory):
+                if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
+                    plugInfo = self.window.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
+                    self.plugins.append(plugInfo)
+                    self.window.log += f"\nFound new plugin with info {plugInfo}"
+                    self.window.regAll()
+        finally:
+            sys.path.pop(0)
+
 class Ui_MainWindow(object):
     windowLoaded = QtCore.pyqtSignal()
     onKeyPress = QtCore.pyqtSignal(int)
+    sys.path.insert(0, ".")
 
     def setupUi(self, MainWindow):
         self.MainWindow = MainWindow
         self.MainWindow.setObjectName("MainWindow")
         self.MainWindow.resize(800, 600)
         self.MainWindow.setStyleSheet(open('ui/style/style.qss', 'r').read())
+
+        self.log = ""
 
         self.thread = None
         self.recentFiles = eval(open("recent.f", "r+").read()) or []
@@ -30,6 +53,7 @@ class Ui_MainWindow(object):
         self.treeView = QtWidgets.QTreeView(parent=self.centralwidget)
         self.treeView.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.treeView.setMinimumWidth(150)
+        self.treeView.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
         self.treeView.setMaximumWidth(300)
         self.treeView.setObjectName("treeView")
         
@@ -180,11 +204,23 @@ class Ui_MainWindow(object):
         newTabAction.triggered.connect(self.addTab)
         newTabAction.setShortcut(QtGui.QKeySequence("Ctrl+N"))
 
+        logConsoleAction = QtWidgets.QAction(self.MainWindow)
+        logConsoleAction.setText("Log Console")
+        logConsoleAction.triggered.connect(self.logConsole)
+        logConsoleAction.setShortcut(QtGui.QKeySequence("Shift+Esc"))
+
         self.MainWindow.addAction(openFileAction)
         self.MainWindow.addAction(saveFileAction)
         self.MainWindow.addAction(openDirAction)
         self.MainWindow.addAction(openRecentFileAction)
         self.MainWindow.addAction(newTabAction)
+        self.MainWindow.addAction(logConsoleAction)
+
+    def logConsole(self):
+        if not LogConsole.running:
+            self.console = LogConsole()
+            self.console.text_edit.append(self.log)
+            self.console.show()
 
     def openRecentFile(self, e=False):
         if len(self.recentFiles) > 0:
@@ -251,7 +287,7 @@ class Ui_MainWindow(object):
         tabsInfo = {}
         tabs = tabsInfo["tabs"] = {}
         tabsInfo["activeTab"] = str(self.tabWidget.currentIndex())
-        for idx in reversed(range(self.tabWidget.count())):
+        for idx in range(self.tabWidget.count()):
             widget = self.tabWidget.widget(idx)
             if widget and isinstance(widget, QtWidgets.QWidget):
                 cursor = widget.textEdit.textCursor()
@@ -292,9 +328,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.windowInitialize()
         self.menu_map = {}
         self.commands = {}
-        # self.plugin_menu = QtWidgets.QMenu("Plugins", self)
+
         self.pl = PluginManager("plugins", self)
-        # self.menuBar().addMenu(self.plugin_menu)
         
         self.parse_menu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
         self.parse_menu(json.load(open("ui/Main.cm", "r+")), self.contextMenu)
@@ -302,6 +337,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.create_shortcut(shortcut) 
 
         self.pl.load_plugins()
+        print(self.pl.plugins)
     def __initTheme(self):
         self.__setCurrentWindowsTheme()
 
@@ -343,13 +379,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         config.read(self.ini_path)
 
         self.name = config.get('DEFAULT', 'name', fallback='Unknown Plugin')
+
         self.version = config.get('DEFAULT', 'version', fallback='1.0')
+
         self.main_script = config.get('DEFAULT', 'main', fallback='')
+
         self.plugInfo = {"name": self.name, "version": self.version, "path": ini_path, "main": self.main_script}
+
         self.cm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'cm', fallback=''))) if config.get('DEFAULT', 'cm', fallback='') else ""
+
         self.tcm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'tcm', fallback=''))) if config.get('DEFAULT', 'tcm', fallback='') else ""
+    
         self.mb = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'mb', fallback=''))) if config.get('DEFAULT', 'mb', fallback='') else ""
+    
         self.sc = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'sc', fallback=''))) if config.get('DEFAULT', 'sc', fallback='') else ""
+    
         return self.plugInfo
 
     def regAll(self):
@@ -369,8 +413,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             for shortcut in json.load(open(self.sc, "r+")):
                 self.create_shortcut(shortcut)            
             self.plugInfo["sc"] = self.sc
-
-        # self.addPlugin(self.name, self.version)
 
     def contextMenuEvent(self, event):
         if self.contextMenu:
@@ -392,42 +434,41 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.addAction(action)
 
     def parse_menu(self, data, parent, pluginPath=None):
-        if isinstance(data, list):
-            for item in data:
-                if 'id' in item:
-                    menu = self.menu_map.get(item['id'])
-                    if menu is None:
-                        menu = QtWidgets.QMenu(item.get('caption', 'Unnamed'), self)
-                        self.menu_map[item['id']] = menu
-                        parent.addMenu(menu)
-                    if 'children' in item:
-                        self.parse_menu(item['children'], menu, pluginPath=pluginPath)
+        if isinstance(data, dict):
+            data = [data]
+
+        for item in data:
+            menu_id = item.get('id')
+            if menu_id:
+                menu = self.menu_map.setdefault(menu_id, QtWidgets.QMenu(item.get('caption', 'Unnamed'), self))
+                parent.addMenu(menu)
+                if 'children' in item:
+                    self.parse_menu(item['children'], menu, pluginPath)
+            else:
+                if 'children' in item:
+                    submenu = QtWidgets.QMenu(item.get('caption', 'Unnamed'), self)
+                    self.parse_menu(item['children'], submenu)
+                    parent.addMenu(submenu)
                 else:
-                    if 'children' in item:
-                        submenu = QtWidgets.QMenu(item.get('caption', 'Unnamed'), self)
-                        self.parse_menu(item['children'], submenu)
-                        parent.addMenu(submenu)
+                    if item.get('caption') == "-":
+                        parent.addSeparator()
                     else:
-                        if 'caption' in item and item['caption'] == "-":
-                            parent.addSeparator()
-                        else:
-                            action = QtWidgets.QAction(item.get('caption', 'Unnamed'), self)
-                            if 'command' in item:
-                                self.registerCommand(command=item['command'], pluginPath=pluginPath)
-                                action.triggered.connect(lambda checked, cmd=item['command'], args=item.get('args', {}): self.execute_command(cmd, args))
-                            parent.addAction(action)
-                            if 'shortcut' in item:
-                                action.setShortcut(QtGui.QKeySequence(item['shortcut']))
-        elif isinstance(data, dict):
-            self.parse_menu([data], parent)
+                        action = QtWidgets.QAction(item.get('caption', 'Unnamed'), self)
+                        if 'command' in item:
+                            self.registerCommand(item['command'], pluginPath)
+                            action.triggered.connect(lambda checked, cmd=item['command'], args=item.get('args', {}): self.execute_command(cmd, args))
+                        parent.addAction(action)
+                        if 'shortcut' in item:
+                            action.setShortcut(QtGui.QKeySequence(item['shortcut']))
+
 
     def execute_command(self, command, *args):
-        if self.commands.get(command): self.commands.get(command).get("command")()
-
-    def addPlugin(self, name, version):
-        plugin_info = f"{name} v{version}"
-        self.plugin_menu.addAction(QtWidgets.QAction(plugin_info, self))
-    
+        c = self.commands.get(command)
+        if c:
+            try:
+                c.get("command")()
+            except Exception as e:
+                self.log += f"\nFound error in {command} - {e}.\nInfo: {c}"
     def registerCommand(self, command, pluginPath=None):
         commandN = command
         if pluginPath:
@@ -438,11 +479,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     main_module = plugin.get("main")
                     if main_module.endswith('.py'):
                         main_module = main_module[:-3]
-                    plug = importlib.import_module(main_module)
-                    command = getattr(plug, commandN)
-                    self.command["command"] = command
-                    self.command["plugin"] = plug
-                    self.commands[commandN] = self.command
+                    try:
+                        plug = importlib.import_module(main_module)
+                        command = getattr(plug, commandN)
+                        self.command["command"] = command
+                        self.command["plugin"] = plug
+                        self.commands[commandN] = self.command
+                    except Exception as e:
+                        self.log += f"\nFound error in {main_module} - {e}"
         else:
             self.command = {}
             command = getattr(self, commandN)

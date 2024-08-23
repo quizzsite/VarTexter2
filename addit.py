@@ -7,6 +7,26 @@ import charset_normalizer as chardet
 class DWMWINDOWATTRIBUTE(Enum):
     DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
+class LogConsole(QtWidgets.QDialog):
+    running = False
+    def __init__(self):
+        super().__init__()
+
+        self.text_edit = QtWidgets.QTextEdit(self)
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setTextInteractionFlags(QtCore.Qt.NoTextInteraction)
+        self.text_edit.setStyleSheet("background-color: black; color: white;")
+        running = True
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(self.text_edit)
+        self.setLayout(layout)
+
+        self.setWindowTitle("Log Console")
+        self.setFixedSize(300, 300)
+    def closeEvent(self, e):
+        running = False
+
 class LineNumberWidget(QtWidgets.QTextBrowser):
     def __init__(self, widget):
         super().__init__()
@@ -71,6 +91,7 @@ class MiniMap(QtWidgets.QTextEdit):
         self.setTextInteractionFlags (QtCore.Qt.NoTextInteraction) 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
         self.setCursor(QtCore.Qt.ArrowCursor)
         self._isDragging = False
         self.setStyleSheet("QTextEdit { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")
@@ -84,6 +105,9 @@ class MiniMap(QtWidgets.QTextEdit):
         self.setFontPointSize(1)
         self.update_minimap()
         self.viewport().update()
+
+    def contextMenuEvent(self, event): event.ignore()
+
     @pyqtSlot()
     def sync_scroll(self):
         max_value = self.text_edit.verticalScrollBar().maximum()
@@ -399,25 +423,6 @@ class LoadingOverlay(QtWidgets.QWidget):
         self.progressBar = QtWidgets.QProgressBar(self)
         self.progressBar.setRange(0, 0)
         self.layout.addWidget(self.progressBar)
-
-class PluginManager:
-    def __init__(self, plugin_directory: str, w):
-        self.plugin_directory = plugin_directory
-        self.window = w
-        self.plugins = []
-    
-    def load_plugins(self): self._load_plugins()
-
-    def _load_plugins(self):
-        try:
-            sys.path.insert(0, self.plugin_directory)
-            for plugDir in os.listdir(self.plugin_directory):
-                if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
-                    plugInfo = self.window.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
-                    self.plugins.append(plugInfo)
-                    self.window.regAll()
-        finally:
-            sys.path.pop(0)
 
 class StaticInfo:
     @staticmethod
