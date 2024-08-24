@@ -65,8 +65,6 @@ class Ui_MainWindow(object):
         self.treeSplitter.addWidget(self.treeView)
         self.treeSplitter.addWidget(self.tabWidget)
 
-        self.enSrtc()
-
         self.widget = QtWidgets.QWidget(parent=self.centralwidget)
         self.widget.setObjectName("widget")
         self.horizontalLayout.addWidget(self.widget)
@@ -176,44 +174,6 @@ class Ui_MainWindow(object):
     def fileManDClicked(self, i):
         if os.path.isfile(self.model.filePath(i)):
             self.openFile([self.model.filePath(i)])
-
-    def enSrtc(self):
-        openFileAction = QtWidgets.QAction(self.MainWindow)
-        openFileAction.setText("Open directory")
-        openFileAction.triggered.connect(self.openFile)
-        openFileAction.setShortcut(QtGui.QKeySequence("Ctrl+O"))
-
-        saveFileAction = QtWidgets.QAction(self.MainWindow)
-        saveFileAction.setText("Save directory")
-        saveFileAction.triggered.connect(self.saveFile)
-        saveFileAction.setShortcut(QtGui.QKeySequence("Ctrl+S"))
-
-        openDirAction = QtWidgets.QAction(self.MainWindow)
-        openDirAction.setText("Open directory")
-        openDirAction.triggered.connect(self.dirSet)
-        openDirAction.setShortcut(QtGui.QKeySequence("Ctrl+Shift+O"))
-
-        openRecentFileAction = QtWidgets.QAction(self.MainWindow)
-        openRecentFileAction.setText("Open directory")
-        openRecentFileAction.triggered.connect(self.openRecentFile)
-        openRecentFileAction.setShortcut(QtGui.QKeySequence("Ctrl+Shift+T"))
-
-        newTabAction = QtWidgets.QAction(self.MainWindow)
-        newTabAction.setText("New tab")
-        newTabAction.triggered.connect(self.addTab)
-        # newTabAction.setShortcut(QtGui.QKeySequence("Ctrl+N"))
-
-        logConsoleAction = QtWidgets.QAction(self.MainWindow)
-        logConsoleAction.setText("Log Console")
-        logConsoleAction.triggered.connect(self.logConsole)
-        logConsoleAction.setShortcut(QtGui.QKeySequence("Shift+Esc"))
-
-        self.MainWindow.addAction(openFileAction)
-        self.MainWindow.addAction(saveFileAction)
-        self.MainWindow.addAction(openDirAction)
-        self.MainWindow.addAction(openRecentFileAction)
-        self.MainWindow.addAction(newTabAction)
-        self.MainWindow.addAction(logConsoleAction)
 
     def logConsole(self):
         if not LogConsole.running:
@@ -421,16 +381,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def create_shortcut(self, shortcut_info):
         keys = shortcut_info.get("keys", [])
         command = shortcut_info.get("command")
-        args = shortcut_info.get("args", {})
+        text = shortcut_info.get("text", "Action")
         
         if not keys or not command:
             return
         
         key_sequence = QtGui.QKeySequence(' '.join(keys))
         action = QtWidgets.QAction(self)
+        action.setText(text)
         action.setShortcut(key_sequence)
         self.registerCommand(command)
-        action.triggered.connect(lambda: self.execute_command(command, args))
+        action.triggered.connect(lambda: self.execute_command(command))
         self.addAction(action)
 
     def parse_menu(self, data, parent, pluginPath=None):
@@ -493,7 +454,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         if c:
             try:
                 args = commandnargs[1:]
-                c.get("command")(args)
+                if args:
+                    c.get("command")(args)
+                else:
+                    c.get("command")()
             except Exception as e:
                 self.log += f"\nFound error in {command} - {e}.\nInfo: {c}"
     def registerCommand(self, command, pluginPath=None):

@@ -3,6 +3,10 @@
         "caption": "Tools",
         "id": "tools",
         "children": [
+            {
+                "caption": "Log console",
+                "command": "logConsole"
+            }
         ]
     },
     {
