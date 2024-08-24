@@ -8,5 +8,16 @@
                 "command": "start"
             }
         ]
+    },
+    {
+        "caption": "Settings",
+        "id": "settings",
+        "children": [
+            {
+                "caption": "Themes",
+                "id": "themes",
+                "children": []
+            }
+        ]
     }
 ]

@@ -1,1 +1,19 @@
-[]
+[
+    {
+        "caption": "Tools",
+        "id": "tools",
+        "children": [
+        ]
+    },
+    {
+        "caption": "Settings",
+        "id": "settings",
+        "children": [
+            {
+                "caption": "Themes",
+                "id": "themes",
+                "children": []
+            }
+        ]
+    }
+]

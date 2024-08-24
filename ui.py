@@ -332,13 +332,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.pl = PluginManager("plugins", self)
         
-        self.parse_menu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
+        self.parse_menu(self.loadThemes(), self.menuBar())
         self.parse_menu(json.load(open("ui/Main.cm", "r+")), self.contextMenu)
         for shortcut in json.load(open("ui/Main.sc", "r+")):
             self.create_shortcut(shortcut) 
 
         self.pl.load_plugins()
-        print(self.pl.plugins)
     def __initTheme(self):
         self.__setCurrentWindowsTheme()
 
@@ -461,17 +460,44 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         parent.addAction(action)
                         if 'shortcut' in item:
                             action.setShortcut(QtGui.QKeySequence(item['shortcut']))
+    def findThemeMenu(self, menu):
+        if menu:
+            if menu.get("id") == "themes":
+                return menu
+            for c in menu.get("children", []):
+                found = self.findThemeMenu(c)
+                if found:
+                    return found
+        return None
+    def settheme(self, theme):
+        if os.path.isfile(f"ui/style/{theme[0]}"):
+            with open(f"ui/style/{theme[0]}", "r") as file:
+                self.MainWindow.setStyleSheet(file.read())
 
+    def loadThemes(self):
+        if os.path.isdir("ui/style"):
+            with open("ui/Main.mb", "r") as file:
+                menus = json.load(file)
+
+            for menu in menus:
+                themeMenu = self.findThemeMenu(menu)
+                if themeMenu:
+                    childrens = themeMenu.get("children", [])
+                    themeMenu["children"] = [{"caption": theme, "command": f"settheme {theme}"} for theme in os.listdir("ui/style")]
+                    break
+        return menus
 
     def execute_command(self, command, *args):
-        c = self.commands.get(command)
+        commandnargs = command.split()
+        c = self.commands.get(commandnargs[0])
         if c:
             try:
-                c.get("command")()
+                args = commandnargs[1:]
+                c.get("command")(args)
             except Exception as e:
                 self.log += f"\nFound error in {command} - {e}.\nInfo: {c}"
     def registerCommand(self, command, pluginPath=None):
-        commandN = command
+        commandN = command.split()[0]
         if pluginPath:
             for plugin in self.pl.plugins:
                 if plugin.get("path") == pluginPath:
@@ -494,9 +520,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.command["command"] = command
             self.command["plugin"] = None
             self.commands[commandN] = self.command
-
-if __name__ == "__main__":
+            
+def main():
     app = QtWidgets.QApplication(sys.argv)
     w = MainWindow()
     w.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
