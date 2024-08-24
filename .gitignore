@@ -5,3 +5,6 @@
 /tablog.json
 /plugins
 /Tmp
+/__pycache__
+/menu.json
+/main.spec

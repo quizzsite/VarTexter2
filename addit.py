@@ -1,4 +1,4 @@
-import sys, uuid, platform, os
+import uuid, platform, os
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 from enum import Enum
@@ -323,28 +323,43 @@ class TabWidget (QtWidgets.QTabWidget):
     def closeTab(self, currentIndex):
         self.setCurrentIndex(currentIndex)
         tab = self.currentWidget()
-        print(tab.file)
         if tab.file:
             self.MainWindow.recentFiles.append(tab.file)
-        if not tab.saved or tab.canSave:
-            dlg = QtWidgets.QDialog()
+        if not (tab.saved and tab.canSave):
+            dlg = QtWidgets.QMessageBox(self)
             dlg.setWindowTitle("VarTexter2 - Exiting")
-            saveLabel = QtWidgets.QLabel(dlg)
-            saveLabel.setText("File is unsaved. Do you want to close it?")
-            QBtn = QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No | QtWidgets.QDialogButtonBox.Cancel
-            self.buttonBox = QtWidgets.QDialogButtonBox(QBtn)
-            excD = dlg.exec()
-            if excD:
+            dlg.setText("File is unsaved. Do you want to close it?")
+            dlg.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+
+            yesButton = dlg.button(QtWidgets.QMessageBox.Yes)
+            noButton = dlg.button(QtWidgets.QMessageBox.No)
+            cancelButton = dlg.button(QtWidgets.QMessageBox.Cancel)
+
+            yesButton.setStyleSheet("QPushButton { color: white;}")
+            noButton.setStyleSheet("QPushButton { color: white;}")
+            cancelButton.setStyleSheet("QPushButton { color: white;}")
+            dlg.setDefaultButton(cancelButton)
+            
+            dlg.setStyleSheet("QtWidgets.QMessageBox { background-color: black; } QLabel { color: white; }")
+            
+            result = dlg.exec_()
+
+            if result == QtWidgets.QMessageBox.Yes:
                 self.MainWindow.saveFile(tab.file)
-            elif excD == None:
-                pass
-            if excD == False:
+            elif result == QtWidgets.QMessageBox.No:
+                print("No")
                 tab.deleteLater()
                 self.removeTab(currentIndex)
+            elif result == QtWidgets.QMessageBox.Cancel:
+                print("Cancel selected")
+        else:
+            tab.deleteLater()
+            self.removeTab(currentIndex)
 
 class FileReadThread(QtCore.QThread):
     chunkRead = pyqtSignal(str)
     finishedReading = pyqtSignal()
+    finished = pyqtSignal()
 
     def __init__(self, file_path, tab, parent=None):
         super(FileReadThread, self).__init__(parent)
@@ -381,9 +396,11 @@ class FileReadThread(QtCore.QThread):
                 self.msleep(3)
             file.close()
             self.finishedReading.emit()
-
+        self.finished.emit()
     def stop(self):
         self._is_running = False
+        self.tab.saved = True
+        print("SAVED")
 
 class FileWriteThread(QtCore.QThread):
     finishedReading = pyqtSignal()
@@ -455,4 +472,3 @@ class StaticInfo:
             except ValueError:
                 return data.replace('{', '{{').replace('}', '}}')
         return data
-

@@ -1,4 +1,4 @@
-import sys, importlib, json, configparser, platform
+import sys, importlib, json, configparser
 from PyQt5 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 from datetime import datetime
@@ -124,6 +124,7 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
         self.tabWidget.currentChanged.connect(self.tabChanged)
         self.checkTabSaved(self.tab)
+
         return self.tab
 
     def checkTabSaved(self, tab):
@@ -141,9 +142,6 @@ class Ui_MainWindow(object):
         tab = self.tabWidget.currentWidget()
         tab.saved = False
         self.checkTabSaved(tab)
-
-    def currentEdtr(self):
-        return self.tabWidget.widget().textEdit
 
     def loadMenuBar(self, e=False):
         pass
@@ -175,8 +173,9 @@ class Ui_MainWindow(object):
         self.treeView.setRootIndex(self.model.index(dir))
         self.treeView.doubleClicked.connect(self.fileManDClicked)
     
-    def fileManDClicked(self, i): 
-        self.openFile([self.model.filePath(i)])
+    def fileManDClicked(self, i):
+        if os.path.isfile(self.model.filePath(i)):
+            self.openFile([self.model.filePath(i)])
 
     def enSrtc(self):
         openFileAction = QtWidgets.QAction(self.MainWindow)
@@ -202,7 +201,7 @@ class Ui_MainWindow(object):
         newTabAction = QtWidgets.QAction(self.MainWindow)
         newTabAction.setText("New tab")
         newTabAction.triggered.connect(self.addTab)
-        newTabAction.setShortcut(QtGui.QKeySequence("Ctrl+N"))
+        # newTabAction.setShortcut(QtGui.QKeySequence("Ctrl+N"))
 
         logConsoleAction = QtWidgets.QAction(self.MainWindow)
         logConsoleAction.setText("Log Console")
@@ -239,9 +238,11 @@ class Ui_MainWindow(object):
         for file in filePath:
             encoding = encoding or 'utf-8'
             tab = self.addTab(name=file, editable=True)
+            self.tabWidget.setCurrentIndex(self.tabWidget.count()-1)
             self.thread = FileReadThread(file, tab)
             self.thread.chunkRead.connect(tab.textEdit.append)
             self.thread.finishedReading.connect(lambda: self.encodingLabel.setText(encoding))
+            self.thread.finished.connect(self.thread.stop)
             self.thread.start()
 
     def saveFile(self):
