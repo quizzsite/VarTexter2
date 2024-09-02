@@ -36,7 +36,6 @@ QTabBar::tab:selected {
     border-style: none;
     background-color: #2d2d2d;
     border-bottom: 2px solid #D3D3D3;
-
 }
 
 QTabBar::close-button {

@@ -11,6 +11,10 @@ import configparser
 class VtAPI(QObject):
 
     commandsLoaded = pyqtSignal()
+    tabClosed = pyqtSignal(str)
+    tabChanged = pyqtSignal()
+    textChanged = pyqtSignal()
+    windowClosed = pyqtSignal()
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -141,6 +145,15 @@ class VtAPI(QObject):
         #             self.window.log += f"\nCommand '{command}' returned '{out}'"
         #     except Exception as e:
         #         self.window.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
+    def initAPI(self, f):
+        sys.path.insert(0, os.path.dirname(f.get("path")))
+        main_module = f.get("main")
+        if main_module.endswith('.py'):
+            main_module = main_module[:-3]
+            plug = importlib.import_module(main_module)
+            if hasattr(plug, "initAPI"):
+                plug.initAPI(self.window.api)
+            del plug
     def registerCommand(self, command, pluginPath=None):
         commandN = command.split()[0]
         if pluginPath:
@@ -153,12 +166,11 @@ class VtAPI(QObject):
                         main_module = main_module[:-3]
                     try:
                         plug = importlib.import_module(main_module)
+                        print(plug)
                         command = getattr(plug, commandN)
                         self.command["command"] = command
                         self.command["plugin"] = plug
                         self.commands[commandN] = self.command
-                        if hasattr(plug, "initAPI"):
-                            plug.initAPI(self.window.api)
                     except Exception as e:
                         self.window.log += f"\nFound error in '{main_module}' - {e}"
 
@@ -200,3 +212,4 @@ class VtAPI(QObject):
         return self.commands
     def getCommand(self, name):
         return self.commands.get(name)
+    

@@ -242,8 +242,10 @@ class TabWidget (QtWidgets.QTabWidget):
 
     def onCurrentChanged(self, index):
         current_tab = self.currentWidget()
-        is_saved = any(i.get("tab") == current_tab and i.get("saved") for i in self.tabbar.savedStates)
-        self.tabbar.updateTabStyle({"tab": current_tab, "saved": is_saved})
+        self.tabbar.updateTabStyle({"tab": current_tab, "saved": self.isSaved(current_tab)})
+
+    def isSaved(self, tab):
+        return any(i.get("tab") == tab and i.get("saved") for i in self.tabbar.savedStates)
 
     def setMovable(self, movable):
         if movable == self.isMovable():
@@ -273,9 +275,7 @@ class TabWidget (QtWidgets.QTabWidget):
     def closeTab(self, currentIndex):
         self.setCurrentIndex(currentIndex)
         tab = self.currentWidget()
-        if tab.file:
-            self.MainWindow.recentFiles.append(tab.file)
-        if not (tab in self.tabbar.savedStates and tab.canSave):
+        if not self.isSaved(tab):
             dlg = QtWidgets.QMessageBox(self)
             dlg.setWindowTitle("VarTexter2 - Exiting")
             dlg.setText("File is unsaved. Do you want to save it?")
@@ -298,14 +298,17 @@ class TabWidget (QtWidgets.QTabWidget):
                 self.MainWindow.api.execute_command(f"saveFile {tab.file}")
                 tab.deleteLater()
                 self.removeTab(currentIndex)
+                self.MainWindow.api.tabClosed.emit(tab.file)
             elif result == QtWidgets.QMessageBox.No:
                 tab.deleteLater()
                 self.removeTab(currentIndex)
+                self.MainWindow.api.tabClosed.emit(tab.file)
             elif result == QtWidgets.QMessageBox.Cancel:
                 pass
         else:
             tab.deleteLater()
             self.removeTab(currentIndex)
+            self.MainWindow.api.tabClosed.emit(tab.file)
 
 class FileReadThread(QtCore.QThread):
     chunkRead = pyqtSignal(str)
