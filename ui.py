@@ -305,10 +305,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.pl = PluginManager("plugins", self)
         self.api = VtAPI(self)
         
-        self.api.parseMenu(self.api.loadThemes(), self.menuBar())
+        self.api.loadThemes()
+
+        self.api.parseMenu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
         self.api.parseMenu(json.load(open("ui/Main.cm", "r+")), self.contextMenu)
         for shortcut in json.load(open("ui/Main.sc", "r+")):
-            self.api.create_shortcut(shortcut) 
+            self.api.createShortcut(shortcut) 
 
         self.api.registerCommand("currentTabIndex")
         self.api.registerCommand("setTab")
@@ -333,7 +335,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 
         self.pl.load_plugins()
-
 
     def __initTheme(self):
         self.__setCurrentWindowsTheme()

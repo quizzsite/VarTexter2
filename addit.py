@@ -298,17 +298,17 @@ class TabWidget (QtWidgets.QTabWidget):
                 self.MainWindow.api.execute_command(f"saveFile {tab.file}")
                 tab.deleteLater()
                 self.removeTab(currentIndex)
-                self.MainWindow.api.tabClosed.emit(tab.file)
+                self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
             elif result == QtWidgets.QMessageBox.No:
                 tab.deleteLater()
                 self.removeTab(currentIndex)
-                self.MainWindow.api.tabClosed.emit(tab.file)
+                self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
             elif result == QtWidgets.QMessageBox.Cancel:
                 pass
         else:
             tab.deleteLater()
             self.removeTab(currentIndex)
-            self.MainWindow.api.tabClosed.emit(tab.file)
+            self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
 
 class FileReadThread(QtCore.QThread):
     chunkRead = pyqtSignal(str)
