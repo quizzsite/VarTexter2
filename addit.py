@@ -27,62 +27,6 @@ class LogConsole(QtWidgets.QDialog):
     def closeEvent(self, e):
         running = False
 
-class LineNumberWidget(QtWidgets.QTextBrowser):
-    def __init__(self, widget):
-        super().__init__()
-        self.target_widget = widget
-        self.__initUi()
-
-    def __initUi(self):
-        self.__size = int(self.target_widget.font().pointSizeF())
-        self.__styleInit()
-
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setTextInteractionFlags(QtCore.Qt.NoTextInteraction)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-
-        self.target_widget.verticalScrollBar().valueChanged.connect(self.__changeLineWidgetScrollAsTargetedWidgetScrollChanged)
-        self.target_widget.document().contentsChanged.connect(self.updateLineNumbers)
-
-        self.updateLineNumbers()
-
-    def __changeLineWidgetScrollAsTargetedWidgetScrollChanged(self, v):
-        self.verticalScrollBar().setValue(v)
-
-    def updateLineNumbers(self):
-        block = self.target_widget.document().firstBlock()
-        line_count = 0
-        self.clear()
-
-        while block.isValid():
-            line_count += self.target_widget.document().documentLayout().blockBoundingRect(block).height() / self.__size
-            block = block.next()
-        
-        for i in range(int(line_count)):
-            self.append(str(i + 1))
-
-    def setFontSize(self, s: float):
-        self.__size = int(s)
-        self.__styleInit()
-        self.updateLineNumbers()
-
-    def __styleInit(self):
-        self.__style = f'''
-                       QTextBrowser 
-                       {{ 
-                       background: transparent; 
-                       border: none; 
-                       color: #AAA; 
-                       font: {self.__size}pt;
-                       margin: 0px;
-                       padding: 0px;
-                       line-height: {self.__size}px;
-                       }}
-                       '''
-        self.setStyleSheet(self.__style)
-        self.setFixedWidth(self.__size * 5)
-
-
 class MiniMap(QtWidgets.QTextEdit):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -102,7 +46,7 @@ class MiniMap(QtWidgets.QTextEdit):
         self.text_edit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
         self.text_edit.verticalScrollBar().rangeChanged.connect(self.update_minimap)
         self.text_edit.textChanged.connect(self.update_minimap)
-        self.setFontPointSize(1)
+        self.setFontPointSize(3)
         self.update_minimap()
         self.viewport().update()
 
@@ -197,13 +141,11 @@ class TextEdit(QtWidgets.QTextEdit):
         self.mw = mw
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenu)
-        self.lineWidget = LineNumberWidget(self)
 
         self.minimap = MiniMap(self)
         self.minimap.setTextEdit(self)
 
         self.layout = QtWidgets.QHBoxLayout()
-        # self.layout.addWidget(self.lineWidget)
         self.layout.addWidget(self)
 
         self.minimap_scroll_area = QtWidgets.QScrollArea()
@@ -263,28 +205,28 @@ class TextEdit(QtWidgets.QTextEdit):
         super(TextEdit, self).insertFromMimeData(source)
 
 class TabBar(QtWidgets.QTabBar):
-    def __init__(self):
+    def __init__(self, tabwidget):
         super().__init__()
+        self.tabWidget = tabwidget
+        self.savedStates = []
+        self.setMovable(True)
+        self.setTabsClosable(True)
+    
+    def setTabSaved(self, tab, saved):
+        if not tab in [i.get("tab") for i in self.savedStates]:
+            self.savedStates.append({"tab": tab, "saved": saved})
+        else:
+            next((i for i in self.savedStates if i.get("tab") == tab), {})["saved"] = saved
+        self.updateTabStyle(next((i for i in self.savedStates if i.get("tab") == tab), {}))
 
-    def enterEvent(self, event):
-        index = self.tabAt(event.pos())
-        if index != -1:
-            self.updateCloseButtonIcon(index, hover=True)
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        index = self.tabAt(event.pos())
-        if index != -1:
-            self.updateCloseButtonIcon(index, hover=False)
-        super().leaveEvent(event)
-
-    def updateCloseButtonIcon(self, index, hover):
-        close_button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
-        if close_button:
-            if hover:
-                close_button.setIcon(QtGui.QIcon('ui/res/x-square-fill-hover.svg'))
-            else:
-                close_button.setIcon(QtGui.QIcon('ui/res/x-square-fill.svg'))
+    def updateTabStyle(self, info):
+        if info.get("tab"):
+            idx = self.tabWidget.indexOf(info.get('tab'))
+            if idx != -1:
+                if info.get("saved"):
+                    self.setStyleSheet(f"QTabBar::tab:selected {{ border-bottom: 2px solid white; }} QTabBar::tab:nth-child({idx+1}) {{ background-color: white; }}")
+                else:
+                    self.setStyleSheet(f"QTabBar::tab:selected {{ border-bottom: 2px solid yellow; }} QTabBar::tab:nth-child({idx+1}) {{ background-color: yellow; }}")
 
 class TabWidget (QtWidgets.QTabWidget):
     def __init__ (self, MainWindow=None, parent=None):
@@ -294,6 +236,14 @@ class TabWidget (QtWidgets.QTabWidget):
         self.MainWindow = MainWindow
         self.moveRange = None
         self.setMovable(True)
+        self.tabbar = TabBar(self)
+        self.setTabBar(self.tabbar)
+        self.currentChanged.connect(self.onCurrentChanged)
+
+    def onCurrentChanged(self, index):
+        current_tab = self.currentWidget()
+        is_saved = any(i.get("tab") == current_tab and i.get("saved") for i in self.tabbar.savedStates)
+        self.tabbar.updateTabStyle({"tab": current_tab, "saved": is_saved})
 
     def setMovable(self, movable):
         if movable == self.isMovable():
@@ -325,10 +275,10 @@ class TabWidget (QtWidgets.QTabWidget):
         tab = self.currentWidget()
         if tab.file:
             self.MainWindow.recentFiles.append(tab.file)
-        if not (tab.saved and tab.canSave):
+        if not (tab in self.tabbar.savedStates and tab.canSave):
             dlg = QtWidgets.QMessageBox(self)
             dlg.setWindowTitle("VarTexter2 - Exiting")
-            dlg.setText("File is unsaved. Do you want to close it?")
+            dlg.setText("File is unsaved. Do you want to save it?")
             dlg.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
 
             yesButton = dlg.button(QtWidgets.QMessageBox.Yes)
@@ -345,13 +295,14 @@ class TabWidget (QtWidgets.QTabWidget):
             result = dlg.exec_()
 
             if result == QtWidgets.QMessageBox.Yes:
-                self.MainWindow.saveFile(tab.file)
+                self.MainWindow.api.execute_command(f"saveFile {tab.file}")
+                tab.deleteLater()
+                self.removeTab(currentIndex)
             elif result == QtWidgets.QMessageBox.No:
-                print("No")
                 tab.deleteLater()
                 self.removeTab(currentIndex)
             elif result == QtWidgets.QMessageBox.Cancel:
-                print("Cancel selected")
+                pass
         else:
             tab.deleteLater()
             self.removeTab(currentIndex)
@@ -372,7 +323,6 @@ class FileReadThread(QtCore.QThread):
         filep = open(self.file_path, 'rb')
         m = chardet.detect(filep.read(1024*3))
         fencoding = m["encoding"]
-        print(fencoding)
         filep.close()
         if fencoding:
             file = open(self.file_path, 'r', encoding=fencoding)
@@ -400,7 +350,6 @@ class FileReadThread(QtCore.QThread):
     def stop(self):
         self._is_running = False
         self.tab.saved = True
-        print("SAVED")
 
 class FileWriteThread(QtCore.QThread):
     finishedReading = pyqtSignal()
@@ -472,3 +421,4 @@ class StaticInfo:
             except ValueError:
                 return data.replace('{', '{{').replace('}', '}}')
         return data
+    

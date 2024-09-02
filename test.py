@@ -1,30 +1,38 @@
-from PyQt5.QtWidgets import QApplication, QDialog, QTextEdit, QVBoxLayout
-from PyQt5.QtCore import Qt
+from PyQt5 import QtWidgets, QtCore, QtGui
 
-class LogConsole(QtWidgets.QDialog):
-    def __init__(self):
-        super().__init__()
+class TabBar(QtWidgets.QTabBar):
+    def __init__(self, parent=None):
+        super(TabBar, self).__init__(parent)
 
-        self.text_edit = QtWidgets.QTextEdit(self)
-        self.text_edit.setReadOnly(True)
-        self.text_edit.setTextInteractionFlags(QtCore.Qt.NoTextInteraction)
-        self.text_edit.setStyleSheet("background-color: black; color: white;")
+class TabWidget(QtWidgets.QTabWidget):
+    def __init__(self, MainWindow=None, parent=None):
+        super(TabWidget, self).__init__(parent)
+        self.setTabsClosable(True)
+        self.tabCloseRequested.connect(self.closeTab)
+        self.MainWindow = MainWindow
+        self.setMovable(True)  # Включаем перемещение вкладок
+        self.tabbar = TabBar(self)
+        self.setTabBar(self.tabbar)
 
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.text_edit)
-        self.setLayout(layout)
+    def setMovable(self, movable):
+        # Используем стандартный метод для перемещения вкладок
+        QtWidgets.QTabWidget.setMovable(self, movable)
 
-        self.setWindowTitle("Log Console")
-        self.setFixedSize(300, 300)
+    def closeTab(self, index):
+        # Закрытие вкладки
+        self.removeTab(index)
 
 if __name__ == "__main__":
     import sys
-    app = QApplication(sys.argv)
 
-    console = LogConsole()
-    console.show()
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    tabWidget = TabWidget(MainWindow)
+    MainWindow.setCentralWidget(tabWidget)
 
-    console.text_edit.append("This is a test log entry.")
-    console.text_edit.append("Another log entry.")
+    # Добавление нескольких вкладок для тестирования
+    for i in range(5):
+        tabWidget.addTab(QtWidgets.QWidget(), f"Tab {i+1}")
 
+    MainWindow.show()
     sys.exit(app.exec_())
