@@ -30,6 +30,8 @@ class FileReadThread(threading.Thread):
         try:
             while self._is_running:
                 chunk = file.read(1024 * 400)
+                hex_representation = chunk.hex()
+                chunk = ' '.join(hex_representation[i:i+4] for i in range(0, len(hex_representation), 4))
                 if not chunk:
                     break
                 self.chunkRead.put(str(chunk))

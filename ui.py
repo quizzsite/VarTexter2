@@ -22,13 +22,23 @@ class PluginManager:
             for plugDir in os.listdir(self.plugin_directory):
                 if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
                     plugInfo = self.window.api.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
+                    plugin = self.window.api.initAPI(plugInfo)
                     self.plugins.append(plugInfo)
                     self.window.log += f"\nFound new plugin with info {plugInfo}"
-                    self.window.api.regAll()
-                    self.window.api.initAPI(plugInfo)
+                    self.window.api.regAll(plugin)
         finally:
             sys.path.pop(0)
             self.window.api.commandsLoaded.emit()
+
+    def load_plugin(self, pluginDir):
+        sys.path.insert(0, pluginDir)
+        if os.path.isdir(os.path.join(self.plugin_directory, pluginDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini"):
+            plugInfo = self.window.api.load_ini_file(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
+            self.plugins.append(plugInfo)
+            self.window.log += f"\nFound new plugin with info {plugInfo}"
+            self.window.api.regAll()
+            self.window.api.initAPI(plugInfo)
+            sys.path.pop(0)
 
 class Ui_MainWindow(object):
     windowLoaded = QtCore.pyqtSignal()
@@ -201,6 +211,23 @@ class Ui_MainWindow(object):
         cursor.setPosition(e, QtGui.QTextCursor.KeepAnchor)
         tab.textEdit.setTextCursor(cursor)
 
+    def addCustomTab(self, tab: QtWidgets.QWidget, title):
+        self.tabWidget.addTab(tab, title)
+
+    def fileSystemModel(self):
+        return QtWidgets.QFileSystemModel()
+    
+    def getTreeModel(self):
+        return self.model
+
+    def setTreeWidgetModel(self, dir):
+        self.model = QtWidgets.QFileSystemModel()
+        self.model.setRootPath(dir)
+        self.treeView.setModel(self.model)
+        self.treeView.setRootIndex(self.model.index(dir))
+        
+        return self.model
+
     def textChngd(self):
         tab = self.tabWidget.currentWidget()
         if tab:
@@ -219,18 +246,6 @@ class Ui_MainWindow(object):
             caption="VarTexter - Get directory",
         )
         return str(dlg)
-
-    def dirSet(self, dir: str = None):
-        dir = dir or self.dirOpenDialog()
-        self.model = QtWidgets.QFileSystemModel()
-        self.model.setRootPath(dir)
-        self.treeView.setModel(self.model)
-        self.treeView.setRootIndex(self.model.index(dir))
-        self.treeView.doubleClicked.connect(self.fileManDClicked)
-    
-    def fileManDClicked(self, i):
-        if os.path.isfile(self.model.filePath(i)):
-            self.openFile([self.model.filePath(i)])
 
     def logConsole(self):
         if not LogConsole.running:
@@ -289,8 +304,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             "username": os.getlogin()
         }
 
-        self.allowedCommands = ["addTab", "dirSet"]
-
         dwmapi = windll.LoadLibrary("dwmapi")
         self.__dwmSetWindowAttribute = dwmapi.DwmSetWindowAttribute
         self.__detect_theme_flag = True
@@ -303,8 +316,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.windowInitialize()
 
         self.pl = PluginManager("plugins", self)
+
         self.api = VtAPI(self)
-        
         self.api.loadThemes()
 
         self.api.parseMenu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
@@ -332,7 +345,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.api.registerCommand("openFileDialog")
         self.api.registerCommand("saveFileDialog")
+        self.api.registerCommand("dirOpenDialog")
 
+        self.api.registerCommand("addCustomTab")
+
+        self.api.registerCommand("fileSystemModel")
+        self.api.registerCommand("getTreeModel")
+        self.api.registerCommand("setTreeWidgetModel")
+        self.api.registerCommand("setTest")
 
         self.pl.load_plugins()
 
