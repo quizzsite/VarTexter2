@@ -39,14 +39,14 @@ QTabBar::tab:selected {
 }
 
 QTabBar::close-button {
-    image: url(C:/Users/Vlad/Documents/VarTexter2/ui/res/x-square-fill.svg);
+    image: url(ui/res/x-square-fill.svg);
     width: 1px;
     height: 1px;
     color: white;
 }
 
 QTabBar::close-button::hover {
-    image: url(C:/Users/Vlad/Documents/VarTexter2/ui/res/x-square-fill-hover.svg);
+    image: url(ui/res/x-square-fill-hover.svg);
     width: 10px;
     height: 10px;
     color: white;

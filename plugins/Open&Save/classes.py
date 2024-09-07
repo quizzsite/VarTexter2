@@ -21,17 +21,18 @@ class FileReadThread(threading.Thread):
 
         if fencoding:
             file = open(self.file_path, 'r', encoding=fencoding)
-            self.vtapi.getCommand("setTabEncoding").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")(), fencoding.upper())
+            self.vtapi.setTabEncoding(self.vtapi.currentTabIndex(), fencoding.upper())
         else:
             file = open(self.file_path, 'rb')
             fencoding = "BYTES"
-            self.vtapi.getCommand("setTabEncoding").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")(), fencoding)
+            self.vtapi.setTabEncoding(self.vtapi.currentTabIndex(), fencoding)
 
         try:
             while self._is_running:
                 chunk = file.read(1024 * 400)
-                hex_representation = chunk.hex()
-                chunk = ' '.join(hex_representation[i:i+4] for i in range(0, len(hex_representation), 4))
+                if fencoding == "BYTES":
+                    hex_representation = chunk.hex()
+                    chunk = ' '.join(hex_representation[i:i+4] for i in range(0, len(hex_representation), 4))
                 if not chunk:
                     break
                 self.chunkRead.put(str(chunk))
@@ -43,8 +44,8 @@ class FileReadThread(threading.Thread):
 
     def stop(self):
         self._is_running = False
-        self.vtapi.getCommand("setTabSaved").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")(), True)
-        self.vtapi.getCommand("textChangeEvent").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")())
+        self.vtapi.setTabSaved(self.vtapi.currentTabIndex(), True)
+        self.vtapi.textChangeEvent(self.vtapi.currentTabIndex())
 
     def _sleep(self, milliseconds):
         time.sleep(milliseconds / 1000)
@@ -58,7 +59,7 @@ class FileWriteThread(threading.Thread):
         self.finished = threading.Event()
 
     def run(self):
-        with open(self.vtapi.getCommand("getTabFile").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")()), "w", encoding=self.vtapi.getCommand("getTabEncoding").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")())) as f:
+        with open(self.vtapi.getTabFile(self.vtapi.currentTabIndex()), "w", encoding=self.vtapi.getTabEncoding(self.vtapi.currentTabIndex())) as f:
             f.truncate(0)
             f.write(self.text)
             f.close()
@@ -66,5 +67,5 @@ class FileWriteThread(threading.Thread):
 
     def stop(self):
         self._is_running = False
-        self.vtapi.getCommand("setTabSaved").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")(), True)
-        self.vtapi.getCommand("textChangeEvent").get("command")(self.vtapi.getCommand("currentTabIndex").get("command")())
+        self.vtapi.setTabSaved(self.vtapi.currentTabIndex(), True)
+        self.vtapi.textChangeEvent(self.vtapi.currentTabIndex())

@@ -4,6 +4,7 @@ from datetime import datetime
 from ctypes import byref, c_bool, sizeof, windll
 from ctypes.wintypes import BOOL, MSG
 from winreg import QueryValueEx, ConnectRegistry, HKEY_CURRENT_USER, OpenKey, KEY_READ
+import msgpack
 
 from addit import *
 from api import *
@@ -81,7 +82,7 @@ class Ui_MainWindow(object):
         self.menubar = QtWidgets.QMenuBar(parent=self.MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 21))
         self.menubar.setObjectName("menubar")
-        self.loadMenuBar()
+
         self.MainWindow.setMenuBar(self.menubar)
         
         self.encodingLabel = QtWidgets.QLabel("UTF-8")
@@ -90,9 +91,7 @@ class Ui_MainWindow(object):
         self.statusbar.addPermanentWidget(self.encodingLabel)
         self.MainWindow.setStatusBar(self.statusbar)
 
-        self.loadingOverlay = LoadingOverlay(self.centralwidget)
-        self.loadingOverlay.hide()
-
+        self.api = VtAPI(self.MainWindow)
         QtCore.QMetaObject.connectSlotsByName(self.MainWindow)
 
     def addTab(self, name: str = "", text: str = "", i: int = -1, file=None, canSave=True, encoding="UTF-8"):
@@ -122,129 +121,7 @@ class Ui_MainWindow(object):
 
         self.tabWidget.addTab(self.tab, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
-        self.tabWidget.currentChanged.connect(self.tabChanged)
-
-    def textChangeEvent(self, i):
-        tab = self.tabWidget.widget(i)
-        tab.textEdit.textChanged.connect(self.textChngd)
-
-    def openFileDialog(e=None):
-        dlg = QtWidgets.QFileDialog.getOpenFileNames(None, "Open File", "", "All Files (*);;Text Files (*.txt)")
-        return dlg
-
-    def saveFileDialog(e=None):
-        dlg = QtWidgets.QFileDialog.getSaveFileName()
-        return dlg
-
-    def currentTabIndex(self):
-        return self.tabWidget.indexOf(self.tabWidget.currentWidget())
-    
-    def getTabTitle(self, i):
-        return self.tabWidget.tabText(i)
-
-    def setTabTitle(self, i, text):
-        tab = self.tabWidget.widget(i)
-        return self.tabWidget.setTabText(self.tabWidget.indexOf(tab), text)
-
-    def getTabText(self, i):
-        tab = self.tabWidget.widget(i)
-        text = tab.textEdit.toHtml()
-        return text
-
-    def setTabText(self, i, text: str | None):
-        tab = self.tabWidget.widget(i)
-        tab.textEdit.setText(text)
-        return text
-
-    def getTabFile(self, i):
-        tab = self.tabWidget.widget(i)
-        return tab.file
-
-    def setTabFile(self, i, file):
-        tab = self.tabWidget.widget(i)
-        tab.file = file
-        return tab.file
-    
-    def getTabCanSave(self, i):
-        tab = self.tabWidget.widget(i)
-        return tab.canSave
-
-    def setTabCanSave(self, i, b: bool):
-        tab = self.tabWidget.widget(i)
-        tab.canSave = b
-        return b
-
-    def getTabEncoding(self, i):
-        tab = self.tabWidget.widget(i)
-        return tab.encoding
-
-    def setTabEncoding(self, i, enc):
-        tab = self.tabWidget.widget(i)
-        tab.encoding = enc
-        return enc
-
-    def setTab(self, i):
-        if i <= -1:
-            self.tabWidget.setCurrentIndex(self.tabWidget.count()-1)
-        else:
-            self.tabWidget.setCurrentIndex(i-1)
-        return i
-
-    def getTabSaved(self, i):
-        tab = self.tabWidget.widget(i)
-        return self.tabWidget.isSaved(tab)
-
-    def setTabSaved(self, i, b: bool):
-        tab = self.tabWidget.widget(i)
-        self.tabWidget.tabBar().setTabSaved(tab or self.tabWidget.currentWidget(), b)
-        return b
-    
-    def getTextSelection(self, i):
-        tab = self.tabWidget.widget(i)
-        return tab.textEdit.textCursor().selectedText()
-
-    def setTextSelection(self, i, s, e):
-        tab = self.tabWidget.widget(i)
-        cursor = tab.textEdit.textCursor()
-        cursor.setPosition(s)
-        cursor.setPosition(e, QtGui.QTextCursor.KeepAnchor)
-        tab.textEdit.setTextCursor(cursor)
-
-    def addCustomTab(self, tab: QtWidgets.QWidget, title):
-        self.tabWidget.addTab(tab, title)
-
-    def fileSystemModel(self):
-        return QtWidgets.QFileSystemModel()
-    
-    def getTreeModel(self):
-        return self.model
-
-    def setTreeWidgetModel(self, dir):
-        self.model = QtWidgets.QFileSystemModel()
-        self.model.setRootPath(dir)
-        self.treeView.setModel(self.model)
-        self.treeView.setRootIndex(self.model.index(dir))
-        
-        return self.model
-
-    def textChngd(self):
-        tab = self.tabWidget.currentWidget()
-        if tab:
-            self.tabWidget.tabBar().setTabSaved(tab, False)
-
-    def loadMenuBar(self, e=False):
-        pass
-
-    def tabChanged(self, index):
-        self.MainWindow.setWindowTitle(f"{self.tabWidget.tabText(index)} - VarTexter2")
-        if index >= 0: self.encodingLabel.setText(self.tabWidget.widget(index).encoding)
-
-    def dirOpenDialog(self, e=None):
-        dlg = QtWidgets.QFileDialog.getExistingDirectory(
-            self.treeView,
-            caption="VarTexter - Get directory",
-        )
-        return str(dlg)
+        self.tabWidget.currentChanged.connect(self.api.tabChngd)
 
     def logConsole(self):
         if not LogConsole.running:
@@ -253,21 +130,22 @@ class Ui_MainWindow(object):
             self.console.show()
 
     def windowInitialize(self):
+        tabLog = {}
         try:
-            tabLog = json.load(open("tablog.json", "r+"))
-        except json.decoder.JSONDecodeError:
-            tabLog = {}
+            with open('data.msgpack', 'rb') as f:
+                packed_data = f.read()
+                tabLog = msgpack.unpackb(packed_data, raw=False)
+        except ValueError:
+            self.log += "\nFailed to restore window state"
         for tab in tabLog.get("tabs") or []:
             tab = tabLog.get("tabs").get(tab)
             self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
-            self.textChangeEvent(self.currentTabIndex())
-            self.setTextSelection(self.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
+            self.api.textChangeEvent(self.api.currentTabIndex())
+            self.api.setTextSelection(self.api.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
         if tabLog.get("activeTab"):
             self.tabWidget.setCurrentIndex(int(tabLog.get("activeTab")))
 
     def closeEvent(self, e=False):
-        tabLog = open("tablog.json", "a+")
-        tabLog.truncate(0)
         tabsInfo = {}
         tabs = tabsInfo["tabs"] = {}
         tabsInfo["activeTab"] = str(self.tabWidget.currentIndex())
@@ -278,15 +156,17 @@ class Ui_MainWindow(object):
                 start = cursor.selectionStart()
                 end = cursor.selectionEnd()
                 tabs[str(idx)] = {
-                    "name": self.tabWidget.tabText(idx),
-                    "file": getattr(widget, 'file', None),
-                    "canSave": getattr(widget, 'canSave', None),
-                    "text": widget.textEdit.toHtml(),
+                    "name": self.api.getTabTitle(idx),
+                    "file": self.api.getTabFile(idx),
+                    "canSave": self.api.getTabCanSave(idx),
+                    "text": self.api.getTabText(idx),
                     "selection": [start, end],
                     "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
         tabs = {str(idx): tabs[str(idx)] for idx in range(len(tabs))}
-        json.dump(tabsInfo, tabLog)
+        with open('data.msgpack', 'wb') as f:
+            packed_data = msgpack.packb(tabsInfo, use_bin_type=True)
+            f.write(packed_data)
 
         self.api.windowClosed.emit()
 
@@ -316,42 +196,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.pl = PluginManager("plugins", self)
 
-        self.api = VtAPI(self)
         self.api.loadThemes()
 
         self.api.parseMenu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
         self.api.parseMenu(json.load(open("ui/Main.cm", "r+")), self.contextMenu)
         for shortcut in json.load(open("ui/Main.sc", "r+")):
             self.api.createShortcut(shortcut) 
-
-        self.api.registerCommand("currentTabIndex")
-        self.api.registerCommand("setTab")
-        self.api.registerCommand("getTabTitle")
-        self.api.registerCommand("setTabTitle")
-        self.api.registerCommand("getTabSaved")
-        self.api.registerCommand("setTabSaved")
-        self.api.registerCommand("getTabCanSave")
-        self.api.registerCommand("setTabCanSave")
-        self.api.registerCommand("getTabText")
-        self.api.registerCommand("setTabText")
-        self.api.registerCommand("getTabFile")
-        self.api.registerCommand("setTabFile")
-        self.api.registerCommand("getTabEncoding")
-        self.api.registerCommand("setTabEncoding")
-        self.api.registerCommand("getTextSelection")
-        self.api.registerCommand("setTextSelection")
-        self.api.registerCommand("textChangeEvent")
-
-        self.api.registerCommand("openFileDialog")
-        self.api.registerCommand("saveFileDialog")
-        self.api.registerCommand("dirOpenDialog")
-
-        self.api.registerCommand("addCustomTab")
-
-        self.api.registerCommand("fileSystemModel")
-        self.api.registerCommand("getTreeModel")
-        self.api.registerCommand("setTreeWidgetModel")
-        self.api.registerCommand("setTest")
 
         self.pl.load_plugins()
 

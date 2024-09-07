@@ -13,12 +13,12 @@ def apiCommand(n):
     return command.get("command")
 
 def dirSet(dir=None):
-    dir = dir or apiCommand("dirOpenDialog")()
-    model = apiCommand("setTreeWidgetModel")(dir)
+    dir = dir or "dirOpenDialog"()
+    model = "setTreeWidgetModel"(dir)
 
     vtapi.treeWidgetDoubleClicked.connect(fileManDClicked)
 
 def fileManDClicked(i):
     print(i)
     # if os.path.isfile(model.filePath(i)):
-        # apiCommand("openFile")([model.filePath(i)])
+        # "openFile"([model.filePath(i)])

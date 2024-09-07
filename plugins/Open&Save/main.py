@@ -19,7 +19,7 @@ def addToRecent(f):
     recLog.close()
 
 def openRecentFile(e=False):
-    i = apiCommand("currentTabIndex")()
+    i = vtapi.currentTabIndex()
     if len(recentFiles) > 0:
         openFile([recentFiles[-1]])
         recentFiles.remove(recentFiles[-1])
@@ -27,20 +27,20 @@ def openRecentFile(e=False):
         recLog.truncate(0)
         recLog.write(str(recentFiles))
         recLog.close()
-        apiCommand("setTabTitle")(i, os.path.basename(apiCommand("getTabFile")(i) or "Untitled"))
-        apiCommand("setTabSaved")(i, True)
+        vtapi.setTabTitle(i, os.path.basename(vtapi.getTabFile(i) or "Untitled"))
+        vtapi.setTabSaved(i, True)
 
 def openFile(filePath=None, encoding=None):
     if not filePath:
-        filePath, _ = apiCommand("openFileDialog")()
+        filePath, _ = vtapi.openFileDialog()
         if not filePath:
             return
     for file in filePath:
         encoding = encoding or 'utf-8'
         apiCommand("addTab")(name=file, canSave=True)
-        apiCommand("setTab")(-1)
-        i = apiCommand("currentTabIndex")()
-        apiCommand("setTabFile")(i, file)
+        vtapi.setTab(-1)
+        i = vtapi.currentTabIndex()
+        vtapi.setTabFile(i, file)
         thread = FileReadThread(vtapi, file)
         thread.chunkRead = queue.Queue()
 
@@ -49,30 +49,30 @@ def openFile(filePath=None, encoding=None):
         while thread.is_alive():
             try:
                 chunk = thread.chunkRead.get(timeout=0.1)
-                apiCommand("setTabText")(i, chunk)
+                vtapi.setTabText(i, chunk)
             except queue.Empty:
                 continue
 
         thread.finished.wait()
         thread.stop()
-        apiCommand("setTabTitle")(i, os.path.basename(apiCommand("getTabFile")(i) or "Untitled"))
-        apiCommand("setTabSaved")(i, True)
+        vtapi.setTabTitle(i, os.path.basename(vtapi.getTabFile(i) or "Untitled"))
+        vtapi.setTabSaved(i, True)
 
 def saveFile(f=None):
-    i = apiCommand("currentTabIndex")()
-    text = apiCommand("getTabText")(i)
-    if apiCommand("getTabCanSave")(i):
+    i = vtapi.currentTabIndex()
+    text = vtapi.getTabText(i)
+    if vtapi.getTabCanSave(i):
         if f:
-            apiCommand("setTabFile")(i, f)
-        if not apiCommand("getTabFile")(i):
-            apiCommand("setTabFile")(i, apiCommand("saveFileDialog")()[0])
-        if apiCommand("getTabFile")(i):
+            vtapi.setTabFile(i, f)
+        if not vtapi.getTabFile(i):
+            vtapi.setTabFile(i, vtapi.saveFileDialog()[0])
+        if vtapi.getTabFile(i):
             thread = FileWriteThread(vtapi, text)
             thread.start()
             thread.finished.wait()
             thread.stop()
-            apiCommand("setTabTitle")(i, os.path.basename(apiCommand("getTabFile")(i) or "Untitled"))
-            apiCommand("setTabSaved")(i, True)
+            vtapi.setTabTitle(i, os.path.basename(vtapi.getTabFile(i) or "Untitled"))
+            vtapi.setTabSaved(i, True)
 
-def saveAsFile(self):
-    saveFile(apiCommand("saveFileDialog")()[0])
+def saveAsFile():
+    saveFile(vtapi.saveFileDialog()[0])

@@ -26,7 +26,7 @@ class VtAPI(QObject):
         self.__window = parent
         self.menu_map = {}
         self.commands = {}
-        self.__window.setTreeWidgetModel("/")
+        self.setTreeWidgetModel("/")
 
         self.__window.treeView.doubleClicked.connect(self.onDoubleClicked)
         self.__window.treeView.clicked.connect(self.onClicked)
@@ -140,7 +140,6 @@ class VtAPI(QObject):
                 for menu in menus:
                     themeMenu = self.findMenu(menu, "themes")
                     if themeMenu:
-                        childrens = themeMenu.get("children", [])
                         themeMenu["children"] = [{"caption": theme, "command": f"settheme {theme}"} for theme in os.listdir("ui/style")]
                         break
             with open("ui/Main.mb", "w+") as file:
@@ -150,16 +149,16 @@ class VtAPI(QObject):
         commandnargs = command.split()
         c = self.commands.get(commandnargs[0])
         if c:
-            # try:
-            args = commandnargs[1:]
-            if args:
-                out = c.get("command")(args)
-            else:
-                out = c.get("command")()
-            if out:
-                self.__window.log += f"\nCommand '{command}' returned '{out}'"
-            # except Exception as e:
-                # self.__window.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
+            try:
+                args = commandnargs[1:]
+                if args:
+                    out = c.get("command")(args)
+                else:
+                    out = c.get("command")()
+                if out:
+                    self.__window.log += f"\nCommand '{command}' returned '{out}'"
+            except Exception as e:
+                self.__window.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
 
     def initAPI(self, plugin):
         sys.path.insert(0, os.path.dirname(plugin.get("path")))
@@ -184,16 +183,14 @@ class VtAPI(QObject):
     def registerCommand(self, command, pl=None):
         commandN = command.split()[0]
         if pl:
-            command_func = getattr(pl, commandN)
-            self.command = {}
-            self.command["command"] = command_func
-            self.command["plugin"] = pl
-            self.commands[commandN] = self.command
-
-                    # except (ImportError, AttributeError) as e:
-                        # self.__window.log += f"\nОшибка при регистрации команды '{commandN}' из модуля '{main_module}': {e}"
-                    # finally:
-                        # sys.path = [p for p in sys.path if p != plugin_dir]
+            try:
+                command_func = getattr(pl, commandN)
+                self.command = {}
+                self.command["command"] = command_func
+                self.command["plugin"] = pl
+                self.commands[commandN] = self.command
+            except (ImportError, AttributeError) as e:
+                self.__window.log += f"\nError when registering '{commandN}' from '{pl}': {e}"
         else:
             self.command = {}
             command_func = getattr(self.__window, commandN, None)
@@ -202,7 +199,7 @@ class VtAPI(QObject):
                 self.command["plugin"] = None
                 self.commands[commandN] = self.command
             else:
-                self.__window.log += f"\nКоманда '{commandN}' не найдена в главном окне"
+                self.__window.log += f"\nCommand '{commandN}' not found"
 
     def removeCommand(self, command_name):
         if command_name in self.commands:
@@ -234,4 +231,123 @@ class VtAPI(QObject):
 
     def getCommand(self, name):
         return self.commands.get(name)
+
+    def textChangeEvent(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        tab.textEdit.textChanged.connect(self.textChngd)
+
+    def openFileDialog(e=None):
+        dlg = QtWidgets.QFileDialog.getOpenFileNames(None, "Open File", "", "All Files (*);;Text Files (*.txt)")
+        return dlg
+
+    def saveFileDialog(e=None):
+        dlg = QtWidgets.QFileDialog.getSaveFileName()
+        return dlg
+
+    def currentTabIndex(self):
+        return self.__window.tabWidget.indexOf(self.__window.tabWidget.currentWidget())
     
+    def getTabTitle(self, i):
+        return self.__window.tabWidget.tabText(i)
+
+    def setTabTitle(self, i, text):
+        tab = self.__window.tabWidget.widget(i)
+        return self.__window.tabWidget.setTabText(self.__window.tabWidget.indexOf(tab), text)
+
+    def getTabText(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        text = tab.textEdit.toHtml()
+        return text
+
+    def setTabText(self, i, text: str | None):
+        tab = self.__window.tabWidget.widget(i)
+        tab.textEdit.setText(text)
+        return text
+
+    def getTabFile(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return tab.file
+
+    def setTabFile(self, i, file):
+        tab = self.__window.tabWidget.widget(i)
+        tab.file = file
+        return tab.file
+    
+    def getTabCanSave(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return tab.canSave
+
+    def setTabCanSave(self, i, b: bool):
+        tab = self.__window.tabWidget.widget(i)
+        tab.canSave = b
+        return b
+
+    def getTabEncoding(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return tab.encoding
+
+    def setTabEncoding(self, i, enc):
+        tab = self.__window.tabWidget.widget(i)
+        tab.encoding = enc
+        return enc
+
+    def setTab(self, i):
+        if i <= -1:
+            self.__window.tabWidget.setCurrentIndex(self.__window.tabWidget.count()-1)
+        else:
+            self.__window.tabWidget.setCurrentIndex(i-1)
+        return i
+
+    def getTabSaved(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return self.__window.tabWidget.isSaved(tab)
+
+    def setTabSaved(self, i, b: bool):
+        tab = self.__window.tabWidget.widget(i)
+        self.__window.tabWidget.tabBar().setTabSaved(tab or self.__window.tabWidget.currentWidget(), b)
+        return b
+    
+    def getTextSelection(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return tab.textEdit.textCursor().selectedText()
+
+    def setTextSelection(self, i, s, e):
+        tab = self.__window.tabWidget.widget(i)
+        cursor = tab.textEdit.textCursor()
+        cursor.setPosition(s)
+        cursor.setPosition(e, QtGui.QTextCursor.KeepAnchor)
+        tab.textEdit.setTextCursor(cursor)
+
+    def addCustomTab(self, tab: QtWidgets.QWidget, title):
+        self.__window.tabWidget.addTab(tab, title)
+
+    def fileSystemModel(self):
+        return QtWidgets.QFileSystemModel()
+    
+    def getTreeModel(self):
+        return self.model
+
+    def setTreeWidgetModel(self, dir):
+        self.model = QtWidgets.QFileSystemModel()
+        self.model.setRootPath(dir)
+        self.__window.treeView.setModel(self.model)
+        self.__window.treeView.setRootIndex(self.model.index(dir))
+        
+        return self.model
+
+    def textChngd(self):
+        tab = self.__window.tabWidget.currentWidget()
+        if tab:
+            self.__window.tabWidget.tabBar().setTabSaved(tab, False)
+
+    def tabChngd(self, index):
+        self.__window.setWindowTitle(f"{self.__window.tabWidget.tabText(index)} - VarTexter2")
+        if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
+        self.tabChanged.emit()
+
+    def dirOpenDialog(self, e=None):
+        dlg = QtWidgets.QFileDialog.getExistingDirectory(
+            self.__window.treeView,
+            caption="VarTexter - Get directory",
+        )
+        return str(dlg)
