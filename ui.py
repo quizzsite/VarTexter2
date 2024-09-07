@@ -41,7 +41,6 @@ class PluginManager:
             sys.path.pop(0)
 
 class Ui_MainWindow(object):
-    windowLoaded = QtCore.pyqtSignal()
     sys.path.insert(0, ".")
 
     def setupUi(self, MainWindow):
