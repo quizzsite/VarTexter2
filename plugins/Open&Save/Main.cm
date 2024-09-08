@@ -1,9 +1,0 @@
-[
-    {
-        "caption": "Open",
-        "command": "openFile",
-        "args": {
-            "target": "file"
-        }
-    }
-]

@@ -1,12 +1,43 @@
-from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import pyqtSignal, QObject, QModelIndex
-import weakref
+from PyQt6 import QtWidgets, QtGui
+from PyQt6.QtCore import pyqtSignal, QObject, QModelIndex
 import sys
 import os
 import json
 import importlib
 import configparser
 
+class PluginManager:
+    def __init__(self, plugin_directory: str, w):
+        self.plugin_directory = plugin_directory
+        self.__window = w
+        self.plugins = []
+    
+    def load_plugins(self): self._load_plugins()
+
+    def _load_plugins(self):
+        try:
+            sys.path.insert(0, self.plugin_directory)
+            for plugDir in os.listdir(self.plugin_directory):
+                if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
+                    plugInfo = self.__window.api.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
+                    plugin = self.__window.api.initAPI(plugInfo)
+                    # if int(self.__window.api.__version__) == int(self.__window.appVersion):
+                    self.plugins.append(plugInfo)
+                    self.__window.logger.log += f"\nFound new plugin with info {plugInfo}"
+                    self.__window.api.regAll(plugin)
+        finally:
+            sys.path.pop(0)
+            self.__window.api.commandsLoaded.emit()
+
+    def load_plugin(self, pluginDir):
+        sys.path.insert(0, pluginDir)
+        if os.path.isdir(os.path.join(self.plugin_directory, pluginDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini"):
+            plugInfo = self.__window.api.load_ini_file(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
+            self.plugins.append(plugInfo)
+            self.__window.logger.log += f"\nFound new plugin with info {plugInfo}"
+            self.__window.api.regAll()
+            self.__window.api.initAPI(plugInfo)
+            sys.path.pop(0)
 
 class VtAPI(QObject):
 
@@ -23,6 +54,7 @@ class VtAPI(QObject):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.__version__ = 1.02
         self.__window = parent
         self.menu_map = {}
         self.commands = {}
@@ -89,7 +121,7 @@ class VtAPI(QObject):
             return
         
         key_sequence = QtGui.QKeySequence(' '.join(keys))
-        action = QtWidgets.QAction(self.__window)
+        action = QtGui.QAction(self.__window)
         action.setText(text)
         action.setShortcut(key_sequence)
         self.registerCommand(command, pl=pl)
@@ -116,10 +148,10 @@ class VtAPI(QObject):
                     if item.get('caption') == "-":
                         parent.addSeparator()
                     else:
-                        action = QtWidgets.QAction(item.get('caption', 'Unnamed'), self.__window)
+                        action = QtGui.QAction(item.get('caption', 'Unnamed'), self.__window)
                         if 'command' in item:
                             self.registerCommand(item['command'], pl)
-                            action.triggered.connect(lambda checked, cmd=item['command'], args=item.get('args', {}): self.executeCommand(cmd, args))
+                            action.triggered.connect(lambda checked, cmd=item['command']: self.executeCommand(cmd))
                         parent.addAction(action)
                         if 'shortcut' in item:
                             action.setShortcut(QtGui.QKeySequence(item['shortcut']))
@@ -134,13 +166,13 @@ class VtAPI(QObject):
         return None
 
     def loadThemes(self):
-        if os.path.isdir("ui/style"):
-            with open("ui/Main.mb", "r+") as file:
+        if os.path.isdir(self.__window.themesDir):
+            with open(self.__window.mb, "r+") as file:
                 menus = json.load(file)
                 for menu in menus:
                     themeMenu = self.findMenu(menu, "themes")
                     if themeMenu:
-                        themeMenu["children"] = [{"caption": theme, "command": f"settheme {theme}"} for theme in os.listdir("ui/style")]
+                        themeMenu["children"] = [{"caption": theme, "command": f"settheme {theme}"} for theme in os.listdir(self.__window.themesDir)]
                         break
             with open("ui/Main.mb", "w+") as file:
                 file.write(json.dumps(menus))
@@ -153,12 +185,15 @@ class VtAPI(QObject):
                 args = commandnargs[1:]
                 if args:
                     out = c.get("command")(args)
+                    self.__window.logger.log += f"\nExecuted command '{command}' with args '{args}'"
                 else:
                     out = c.get("command")()
+                    self.__window.logger.log += f"\nExecuted command '{command}'"
                 if out:
-                    self.__window.log += f"\nCommand '{command}' returned '{out}'"
+                    self.__window.logger.log += f"\nCommand '{command}' returned '{out}'"
             except Exception as e:
-                self.__window.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
+                print(e)
+                self.__window.logger.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
 
     def initAPI(self, plugin):
         sys.path.insert(0, os.path.dirname(plugin.get("path")))
@@ -190,7 +225,7 @@ class VtAPI(QObject):
                 self.command["plugin"] = pl
                 self.commands[commandN] = self.command
             except (ImportError, AttributeError) as e:
-                self.__window.log += f"\nError when registering '{commandN}' from '{pl}': {e}"
+                self.__window.logger.log += f"\nError when registering '{commandN}' from '{pl}': {e}"
         else:
             self.command = {}
             command_func = getattr(self.__window, commandN, None)
@@ -199,18 +234,18 @@ class VtAPI(QObject):
                 self.command["plugin"] = None
                 self.commands[commandN] = self.command
             else:
-                self.__window.log += f"\nCommand '{commandN}' not found"
+                self.__window.logger.log += f"\nCommand '{commandN}' not found"
 
     def removeCommand(self, command_name):
         if command_name in self.commands:
             del self.commands[command_name]
-            self.__window.log += f"\nUnregistered command '{command_name}'"
+            self.__window.logger.log += f"\nUnregistered command '{command_name}'"
 
     def removeMenu(self, menu_id):
         if menu_id in self.menu_map:
             menu = self.menu_map.pop(menu_id)
             menu.deleteLater()
-            self.__window.log += f"\nRemoved menu with ID '{menu_id}'"
+            self.__window.logger.log += f"\nRemoved menu with ID '{menu_id}'"
 
     def removeShortcut(self, shortcut_info):
         keys = shortcut_info.get("keys", [])
@@ -224,7 +259,7 @@ class VtAPI(QObject):
         
         if action:
             self.__window.removeAction(action)
-            self.__window.log += f"\nRemoved shortcut '{command}'"
+            self.__window.logger.log += f"\nRemoved shortcut '{command}'"
 
     def getCommands(self):
         return self.commands
@@ -315,20 +350,20 @@ class VtAPI(QObject):
         tab = self.__window.tabWidget.widget(i)
         cursor = tab.textEdit.textCursor()
         cursor.setPosition(s)
-        cursor.setPosition(e, QtGui.QTextCursor.KeepAnchor)
+        cursor.setPosition(e, QtGui.QTextCursor.MoveMode.KeepAnchor)
         tab.textEdit.setTextCursor(cursor)
 
     def addCustomTab(self, tab: QtWidgets.QWidget, title):
         self.__window.tabWidget.addTab(tab, title)
 
     def fileSystemModel(self):
-        return QtWidgets.QFileSystemModel()
+        return QtGui.QFileSystemModel()
     
     def getTreeModel(self):
         return self.model
 
     def setTreeWidgetModel(self, dir):
-        self.model = QtWidgets.QFileSystemModel()
+        self.model = QtGui.QFileSystemModel()
         self.model.setRootPath(dir)
         self.__window.treeView.setModel(self.model)
         self.__window.treeView.setRootIndex(self.model.index(dir))
@@ -351,3 +386,7 @@ class VtAPI(QObject):
             caption="VarTexter - Get directory",
         )
         return str(dlg)
+    def setTheme(self, theme):
+        themePath = os.path.join(self.__window.themesDir, theme)
+        if os.path.isfile(themePath):
+            self.__window.setStyleSheet(open(themePath, "r+").read())

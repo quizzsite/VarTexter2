@@ -1,42 +1,52 @@
 import uuid, platform, os
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
+from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtCore import pyqtSlot
 from enum import Enum
-import charset_normalizer as chardet
 
 class DWMWINDOWATTRIBUTE(Enum):
     DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
-class LogConsole(QtWidgets.QDialog):
-    running = False
-    def __init__(self):
+class ConsoleWidget(QtWidgets.QDockWidget):
+    def __init__(self, window):
         super().__init__()
-
-        self.text_edit = QtWidgets.QTextEdit(self)
-        self.text_edit.setReadOnly(True)
-        self.text_edit.setTextInteractionFlags(QtCore.Qt.NoTextInteraction)
-        self.text_edit.setStyleSheet("background-color: black; color: white;")
-        running = True
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.text_edit)
-        self.setLayout(layout)
-
-        self.setWindowTitle("Log Console")
-        self.setFixedSize(300, 300)
+        self.window = window
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.setAllowedAreas(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea)
+        self.consoleWidget = QtWidgets.QWidget()
+        self.consoleWidget.setObjectName("consoleWidget")
+        self.verticalLayout = QtWidgets.QVBoxLayout(self.consoleWidget)
+        self.verticalLayout.setObjectName("verticalLayout")
+        self.textEdit = QtWidgets.QTextEdit(parent=self.consoleWidget)
+        # self.textEdit.setReadOnly(True)
+        self.textEdit.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.NoTextInteraction)
+        self.setStyleSheet("color: white;")
+        self.textEdit.setObjectName("textEdit")
+        self.verticalLayout.addWidget(self.textEdit)
+        self.lineEdit = QtWidgets.QLineEdit(parent=self.consoleWidget)
+        self.lineEdit.setMouseTracking(False)
+        self.lineEdit.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
+        self.lineEdit.setCursorMoveStyle(QtCore.Qt.CursorMoveStyle.LogicalMoveStyle)
+        self.lineEdit.setObjectName("lineEdit")
+        self.verticalLayout.addWidget(self.lineEdit)
+        self.setWidget(self.consoleWidget)
+        self.lineEdit.returnPressed.connect(self.sendCommand)
+    def sendCommand(self):
+        self.window.api.executeCommand(self.lineEdit.text())
+        self.lineEdit.clear()
     def closeEvent(self, e):
-        running = False
+        self.window.console = None
+        e.accept()
 
 class MiniMap(QtWidgets.QTextEdit):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setReadOnly(True)
         self.setFixedWidth(150)
-        self.setTextInteractionFlags (QtCore.Qt.NoTextInteraction) 
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
-        self.setCursor(QtCore.Qt.ArrowCursor)
+        self.setTextInteractionFlags (QtCore.Qt.TextInteractionFlag.NoTextInteraction) 
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
+        self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self._isDragging = False
         self.setStyleSheet("QTextEdit { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")
 
@@ -139,7 +149,7 @@ class TextEdit(QtWidgets.QTextEdit):
         super().__init__()
 
         self.mw = mw
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenu)
 
         self.minimap = MiniMap(self)
@@ -151,8 +161,8 @@ class TextEdit(QtWidgets.QTextEdit):
         self.minimap_scroll_area = QtWidgets.QScrollArea()
         self.minimap_scroll_area.setWidget(self.minimap)
         self.minimap_scroll_area.setFixedWidth(150)
-        self.minimap_scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.minimap_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.minimap_scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.minimap_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.layout.addWidget(self.minimap_scroll_area)
 
@@ -341,4 +351,18 @@ class StaticInfo:
             except ValueError:
                 return data.replace('{', '{{').replace('}', '}}')
         return data
+    @staticmethod
+    def replacePaths(data):
+        path=data
+        while '%' in path:
+            start_index = path.find('%')
+            end_index = path.find('%', start_index + 1)
+            if start_index == -1 or end_index == -1:
+                break
+
+            env_var = path[start_index + 1:end_index]
+            env_value = os.getenv(env_var, f'%{env_var}%')
+            path = path[:start_index] + env_value + path[end_index + 1:]
+        
+        return path
     

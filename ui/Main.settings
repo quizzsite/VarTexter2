@@ -1,0 +1,13 @@
+{
+    "appName": "VarTexter2",
+    "apiVersion": 1.0,
+    "packageDirs": {
+        "Windows": "%USERPROFILE%/Documents/VarTexter2",
+        "Linux": "%HOME%/.local/share/VarTexter2",
+        "OSX": "%HOME%/Library/Application Support/VarTexter2"
+    },
+    "remindOnClose": true,
+    "mb": "Ui/Main.mb",
+    "cm": "Ui/Main.cm",
+    "sc": "Ui/Main.sc"
+}

@@ -1,57 +1,40 @@
-import sys, importlib, json, configparser
-from PyQt5 import QtCore, QtGui, QtWidgets
+import sys, json
+from PyQt6 import QtCore, QtWidgets
 from datetime import datetime
-from ctypes import byref, c_bool, sizeof, windll
-from ctypes.wintypes import BOOL, MSG
-from winreg import QueryValueEx, ConnectRegistry, HKEY_CURRENT_USER, OpenKey, KEY_READ
 import msgpack
 
 from addit import *
 from api import *
 
-class PluginManager:
-    def __init__(self, plugin_directory: str, w):
-        self.plugin_directory = plugin_directory
-        self.window = w
-        self.plugins = []
-    
-    def load_plugins(self): self._load_plugins()
+class Logger:
+    def __init__(self, w):
+        self._log = ""
+        self.__window = w
 
-    def _load_plugins(self):
-        try:
-            sys.path.insert(0, self.plugin_directory)
-            for plugDir in os.listdir(self.plugin_directory):
-                if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
-                    plugInfo = self.window.api.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
-                    plugin = self.window.api.initAPI(plugInfo)
-                    self.plugins.append(plugInfo)
-                    self.window.log += f"\nFound new plugin with info {plugInfo}"
-                    self.window.api.regAll(plugin)
-        finally:
-            sys.path.pop(0)
-            self.window.api.commandsLoaded.emit()
+    @property
+    def log(self):
+        return self._log
 
-    def load_plugin(self, pluginDir):
-        sys.path.insert(0, pluginDir)
-        if os.path.isdir(os.path.join(self.plugin_directory, pluginDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini"):
-            plugInfo = self.window.api.load_ini_file(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
-            self.plugins.append(plugInfo)
-            self.window.log += f"\nFound new plugin with info {plugInfo}"
-            self.window.api.regAll()
-            self.window.api.initAPI(plugInfo)
-            sys.path.pop(0)
+    @log.setter
+    def log(self, value):
+        self._log = value
+        if self.__window.console:
+            self.__window.console.textEdit.clear()
+            self.__window.console.textEdit.append(value)
 
 class Ui_MainWindow(object):
     sys.path.insert(0, ".")
 
     def setupUi(self, MainWindow):
         self.MainWindow = MainWindow
+        self.settings()
         self.MainWindow.setObjectName("MainWindow")
-        self.MainWindow.setWindowTitle("VarTexter2")
+        self.MainWindow.setWindowTitle(self.MainWindow.appName)
         self.MainWindow.resize(800, 600)
-        self.MainWindow.setStyleSheet(open('ui/style/style.qss', 'r').read())
 
-        self.log = ""
+        self.console = None
+
+        self.logger = Logger(self.MainWindow)
 
         self.centralwidget = QtWidgets.QWidget(parent=self.MainWindow)
         self.centralwidget.setObjectName("centralwidget")
@@ -62,7 +45,7 @@ class Ui_MainWindow(object):
         self.treeView = QtWidgets.QTreeView(parent=self.centralwidget)
         self.treeView.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.treeView.setMinimumWidth(150)
-        self.treeView.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
+        self.treeView.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.treeView.setMaximumWidth(300)
         self.treeView.setObjectName("treeView")
         
@@ -124,10 +107,26 @@ class Ui_MainWindow(object):
         self.tabWidget.currentChanged.connect(self.api.tabChngd)
 
     def logConsole(self):
-        if not LogConsole.running:
-            self.console = LogConsole()
-            self.console.text_edit.append(self.log)
-            self.console.show()
+        if not self.console:
+            self.console = ConsoleWidget(self.MainWindow)
+            self.console.textEdit.append(self.logger.log)
+            self.MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.console)
+
+    def settings(self):
+        with open('ui/Main.settings', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            f.close()
+        self.packageDirs = data.get("packageDirs")
+        if self.packageDirs:
+            self.packageDirs = self.packageDirs.get(StaticInfo.get_platform())
+            self.themesDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Themes"))
+            self.pluginsDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Plugins"))
+        self.MainWindow.appName = data.get("appName")
+        self.MainWindow.__version__ = data.get("apiVersion")
+        self.remindOnClose = data.get("remindOnClose")
+        self.mb = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("mb")))
+        self.cm = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("cm")))
+        self.sc = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("sc")))
 
     def windowInitialize(self):
         tabLog = {}
@@ -136,11 +135,12 @@ class Ui_MainWindow(object):
                 packed_data = f.read()
                 tabLog = msgpack.unpackb(packed_data, raw=False)
         except ValueError:
-            self.log += "\nFailed to restore window state"
+            self.logger.log += "\nFailed to restore window state"
         for tab in tabLog.get("tabs") or []:
             tab = tabLog.get("tabs").get(tab)
             self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
             self.api.textChangeEvent(self.api.currentTabIndex())
+            self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.currentTabIndex())} - VarTexter2")
             self.api.setTextSelection(self.api.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
         if tabLog.get("activeTab"):
             self.tabWidget.setCurrentIndex(int(tabLog.get("activeTab")))
@@ -183,65 +183,28 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             "username": os.getlogin()
         }
 
-        dwmapi = windll.LoadLibrary("dwmapi")
-        self.__dwmSetWindowAttribute = dwmapi.DwmSetWindowAttribute
-        self.__detect_theme_flag = True
-        if self.constants["platform"] == "Windows": self.__initTheme()
-
         self.contextMenu = QtWidgets.QMenu(self)
         self.textContextMenu = QtWidgets.QMenu(self)
         
         self.setupUi(self)
         self.windowInitialize()
 
-        self.pl = PluginManager("plugins", self)
+        self.pl = PluginManager(self.pluginsDir, self)
 
         self.api.loadThemes()
-
-        self.api.parseMenu(json.load(open("ui/Main.mb", "r+")), self.menuBar())
-        self.api.parseMenu(json.load(open("ui/Main.cm", "r+")), self.contextMenu)
-        for shortcut in json.load(open("ui/Main.sc", "r+")):
-            self.api.createShortcut(shortcut) 
+        self.api.setTheme("style.qss")
+        
+        if self.mb:        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
+        if self.cm:        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
+        if self.sc:
+            for shortcut in json.load(open(self.sc, "r+")):
+                self.api.createShortcut(shortcut) 
 
         self.pl.load_plugins()
 
-    def __initTheme(self):
-        self.__setCurrentWindowsTheme()
-
-    def nativeEvent(self, eventType, message):
-        if self.isDetectingThemeAllowed():
-            msg = MSG.from_address(message.__int__())
-            if msg.message == 26:
-                self.__setCurrentWindowsTheme()
-        return super().nativeEvent(eventType, message)
-
-    def __setCurrentWindowsTheme(self):
-        try:
-            root = ConnectRegistry(None, HKEY_CURRENT_USER)
-            root_key = OpenKey(HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize', 0, KEY_READ)
-            lightThemeValue, regtype = QueryValueEx(root_key, 'AppsUseLightTheme')
-            if lightThemeValue == 0 or lightThemeValue == 1:
-                self.__dwmSetWindowAttribute(int(self.winId()), DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE.value, byref(c_bool(lightThemeValue == 0)), sizeof(BOOL))
-            else:
-                raise Exception(f'Unknown value "{lightThemeValue}".')
-        except FileNotFoundError:
-            print('AppsUseLightTheme not found.')
-        except Exception as e:
-            print(e)
-
-    def setDarkTheme(self, f: bool):
-        self.__dwmSetWindowAttribute(int(self.winId()), DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE.value,
-                                     byref(c_bool(f)), sizeof(BOOL))
-
-    def isDetectingThemeAllowed(self):
-        return self.__detect_theme_flag
-
-    def allowDetectingTheme(self, f: bool):
-        self.__detect_theme_flag = f
-
     def contextMenuEvent(self, event):
         if self.contextMenu:
-            self.contextMenu.exec_(self.mapToGlobal(event.pos()))
+            self.contextMenu.exec(self.mapToGlobal(event.pos()))
 
     def settheme(self, theme):
         if os.path.isfile(f"ui/style/{theme[0]}"):
