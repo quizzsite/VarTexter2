@@ -65,6 +65,11 @@ class VtAPI(QObject):
         self.__window.treeView.activated.connect(self.onActivated)
         # self.__window.treeView.customContextMenuRequested.connect()
 
+        self.packageDirs = self.__window.packageDirs
+        self.pluginsDir = self.__window.pluginsDir
+        self.themesDir = self.__window.themesDir
+        self.uiDir = self.__window.uiDir
+
     def __str__(self):
         return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""
 
@@ -278,6 +283,7 @@ class VtAPI(QObject):
     def textChangeEvent(self, i):
         tab = self.__window.tabWidget.widget(i)
         tab.textEdit.textChanged.connect(self.textChngd)
+        tab.textEdit.document().contentsChanged.connect(self.textChngd)
 
     def openFileDialog(e=None):
         dlg = QtWidgets.QFileDialog.getOpenFileNames(None, "Open File", "", "All Files (*);;Text Files (*.txt)")

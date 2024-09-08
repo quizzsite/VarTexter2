@@ -27,7 +27,9 @@ class Ui_MainWindow(object):
 
     def setupUi(self, MainWindow):
         self.MainWindow = MainWindow
+
         self.settings()
+        
         self.MainWindow.setObjectName("MainWindow")
         self.MainWindow.setWindowTitle(self.MainWindow.appName)
         self.MainWindow.resize(800, 600)
@@ -47,24 +49,20 @@ class Ui_MainWindow(object):
         self.treeView.setMinimumWidth(150)
         self.treeView.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.treeView.setMaximumWidth(300)
-        self.treeView.setObjectName("treeView")
+        self.treeView.setObjectName("treeWidget")
         
         self.treeSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.horizontalLayout.addWidget(self.treeSplitter)
         
         self.tabWidget = TabWidget(parent=self.centralwidget, MainWindow=self.MainWindow)
-        self.tabWidget.setObjectName("tabWidget")
         self.treeSplitter.addWidget(self.treeView)
         self.treeSplitter.addWidget(self.tabWidget)
 
-        self.widget = QtWidgets.QWidget(parent=self.centralwidget)
-        self.widget.setObjectName("widget")
-        self.horizontalLayout.addWidget(self.widget)
         self.MainWindow.setCentralWidget(self.centralwidget)
         
         self.menubar = QtWidgets.QMenuBar(parent=self.MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 21))
-        self.menubar.setObjectName("menubar")
+        self.menubar.setObjectName("menuBar")
 
         self.MainWindow.setMenuBar(self.menubar)
         
@@ -75,6 +73,9 @@ class Ui_MainWindow(object):
         self.MainWindow.setStatusBar(self.statusbar)
 
         self.api = VtAPI(self.MainWindow)
+
+        self.tabWidget.currentChanged.connect(self.api.tabChngd)
+
         QtCore.QMetaObject.connectSlotsByName(self.MainWindow)
 
     def addTab(self, name: str = "", text: str = "", i: int = -1, file=None, canSave=True, encoding="UTF-8"):
@@ -91,7 +92,7 @@ class Ui_MainWindow(object):
         self.frame = QtWidgets.QFrame(parent=self.tab)
         self.frame.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
-        self.frame.setObjectName("frame")
+        self.frame.setObjectName("tabFrame")
         self.verticalLayout.addWidget(self.frame)
         
         self.tab.textEdit = TextEdit(self.MainWindow)
@@ -104,7 +105,7 @@ class Ui_MainWindow(object):
 
         self.tabWidget.addTab(self.tab, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
-        self.tabWidget.currentChanged.connect(self.api.tabChngd)
+        self.api.setTab(-1)
 
     def logConsole(self):
         if not self.console:
@@ -121,6 +122,7 @@ class Ui_MainWindow(object):
             self.packageDirs = StaticInfo.replacePaths(self.packageDirs.get(StaticInfo.get_platform()))
             self.themesDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Themes"))
             self.pluginsDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Plugins"))
+            self.uiDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Ui"))
         self.MainWindow.appName = data.get("appName")
         self.MainWindow.__version__ = data.get("apiVersion")
         self.remindOnClose = data.get("remindOnClose")
@@ -131,7 +133,7 @@ class Ui_MainWindow(object):
     def windowInitialize(self):
         tabLog = {}
         try:
-            with open('data.msgpack', 'rb') as f:
+            with open(os.path.join(self.packageDirs, 'data.msgpack'), 'rb') as f:
                 packed_data = f.read()
                 tabLog = msgpack.unpackb(packed_data, raw=False)
         except ValueError:
@@ -164,7 +166,7 @@ class Ui_MainWindow(object):
                     "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
         tabs = {str(idx): tabs[str(idx)] for idx in range(len(tabs))}
-        with open('data.msgpack', 'wb') as f:
+        with open(os.path.join(self.packageDirs, 'data.msgpack'), 'wb') as f:
             packed_data = msgpack.packb(tabsInfo, use_bin_type=True)
             f.write(packed_data)
 

@@ -50,14 +50,15 @@ class MiniMap(QtWidgets.QTextEdit):
         self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self._isDragging = False
-        self.setStyleSheet("QTextEdit#miniMap { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")
+        self.setStyleSheet("QTextEdit#miniMap { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; color: white;}")
 
     def setTextEdit(self, text_edit):
-        self.text_edit = text_edit
-        self.setHtml(self.text_edit.toHtml())
-        self.text_edit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
-        self.text_edit.verticalScrollBar().rangeChanged.connect(self.update_minimap)
-        self.text_edit.textChanged.connect(self.update_minimap)
+        self.textEdit = text_edit
+        self.setHtml(self.textEdit.toHtml())
+        self.textEdit.verticalScrollBar().valueChanged.connect(self.syncScroll)
+        self.textEdit.cursorPositionChanged.connect(self.syncSelection)
+        self.textEdit.verticalScrollBar().rangeChanged.connect(self.update_minimap)
+        self.textEdit.textChanged.connect(self.update_minimap)
         self.setFontPointSize(3)
         self.update_minimap()
         self.viewport().update()
@@ -65,29 +66,36 @@ class MiniMap(QtWidgets.QTextEdit):
     def contextMenuEvent(self, event): event.ignore()
 
     @pyqtSlot()
-    def sync_scroll(self):
-        max_value = self.text_edit.verticalScrollBar().maximum()
-        if max_value != 0:
-            value = self.text_edit.verticalScrollBar().value()
-            ratio = value / max_value
+    def syncScroll(self):
+        maxValue = self.textEdit.verticalScrollBar().maximum()
+        if maxValue != 0:
+            value = self.textEdit.verticalScrollBar().value()
+            ratio = value / maxValue
             self.verticalScrollBar().setValue(int(ratio * self.verticalScrollBar().maximum()))
+        self.viewport().update()
+
+    def syncSelection(self):
+        c = QtGui.QTextCursor(self.textEdit.document())
+        c.setPosition(self.textEdit.textCursor().selectionStart())
+        c.setPosition(self.textEdit.textCursor().selectionEnd(), QtGui.QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(c)
         self.viewport().update()
 
     @pyqtSlot()
     def update_minimap(self):
-        self.setPlainText(self.text_edit.toPlainText())
-        self.sync_scroll()
+        self.setPlainText(self.textEdit.toPlainText())
+        self.syncScroll()
         self.viewport().update()
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self._isDragging = True
-            self.sync_scroll_from_position(event.pos())
+            self.syncScroll_from_position(event.pos())
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self._isDragging:
-            self.sync_scroll_from_position(event.pos())
+            self.syncScroll_from_position(event.pos())
             self.textCursor().clearSelection()
         super().mouseMoveEvent(event)
         self.textCursor().clearSelection()
@@ -98,16 +106,16 @@ class MiniMap(QtWidgets.QTextEdit):
             self._isDragging = False
         super().mouseReleaseEvent(event)
 
-    def sync_scroll_from_position(self, pos):
+    def syncScroll_from_position(self, pos):
         if self.viewport().height() != 0:
             ratio = pos.y() / self.viewport().height()
-            value = int(ratio * self.text_edit.verticalScrollBar().maximum())
-            self.text_edit.verticalScrollBar().setValue(value)
+            value = int(ratio * self.textEdit.verticalScrollBar().maximum())
+            self.textEdit.verticalScrollBar().setValue(value)
             self.textCursor().clearSelection()
 
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
-        scroll_bar = self.text_edit.verticalScrollBar()
+        scroll_bar = self.textEdit.verticalScrollBar()
         scroll_bar.setValue(int(scroll_bar.value() - delta / 1.5))
 
     def resizeEvent(self, event):
@@ -116,35 +124,34 @@ class MiniMap(QtWidgets.QTextEdit):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        if self.text_edit is None:
+        if self.textEdit is None:
             return
 
-        viewport_rect = self.text_edit.viewport().rect()
-        content_rect = self.text_edit.document().documentLayout().blockBoundingRect(self.text_edit.document().firstBlock()).united(
-            self.text_edit.document().documentLayout().blockBoundingRect(self.text_edit.document().lastBlock())
+        viewportRect = self.textEdit.viewport().rect()
+        content_rect = self.textEdit.document().documentLayout().blockBoundingRect(self.textEdit.document().firstBlock()).united(
+            self.textEdit.document().documentLayout().blockBoundingRect(self.textEdit.document().lastBlock())
         )
 
-        viewport_height = self.viewport().height()
-        content_height = content_rect.height()
-        if content_height == 0:
+        viewportHeight = self.viewport().height()
+        contentHeight = content_rect.height()
+        if contentHeight == 0:
             return
-        scale_factor = viewport_height / content_height
+        scaleFactor = viewportHeight / contentHeight
 
-        visible_rect_height = viewport_rect.height() * scale_factor
-        visible_rect_top = self.text_edit.verticalScrollBar().value() * scale_factor
+        visibleRectHeight = viewportRect.height() * scaleFactor
+        visibleRectTop = self.textEdit.verticalScrollBar().value() * scaleFactor
 
-        visible_rect = QtCore.QRectF(
+        visibleRect = QtCore.QRectF(
             0,
-            visible_rect_top,
+            visibleRectTop,
             self.viewport().width(),
-            visible_rect_height
+            visibleRectHeight
         )
 
         painter = QtGui.QPainter(self.viewport())
         painter.setBrush(QtGui.QColor(0, 0, 255, 50))
         painter.setPen(QtGui.QColor(0, 0, 255))
-        painter.drawRect(visible_rect)
-
+        painter.drawRect(visibleRect)
 
 class TextEdit(QtWidgets.QTextEdit):
     def __init__(self, mw):
@@ -160,21 +167,17 @@ class TextEdit(QtWidgets.QTextEdit):
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.addWidget(self)
 
-        self.minimap_scroll_area = QtWidgets.QScrollArea()
-        self.minimap_scroll_area.setWidget(self.minimap)
-        self.minimap_scroll_area.setFixedWidth(150)
-        self.minimap_scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.minimap_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.minimapScrollArea = QtWidgets.QScrollArea()
+        self.minimapScrollArea.setWidget(self.minimap)
+        self.minimapScrollArea.setFixedWidth(150)
+        self.minimapScrollArea.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.minimapScrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self.layout.addWidget(self.minimap_scroll_area)
+        self.layout.addWidget(self.minimapScrollArea)
 
     def contextMenu(self, pos):
         self.mw.textContextMenu.exec_(self.mapToGlobal(pos))
 
-    def __line_widget_line_count_changed(self):
-        if self.lineWidget:
-            n = int(self.document().lineCount())
-            self.lineWidget.changeLineCount(n)
     def canInsertFromMimeData(self, source):
         if source.hasImage():
             return True
@@ -183,7 +186,7 @@ class TextEdit(QtWidgets.QTextEdit):
 
     def _insert_img(self, u, document, cursor):
         image = QtGui.QImage(u.toLocalFile())
-        document.addResource(QtGui.QTextDocument.ImageResource, u, image)
+        document.addResource(QtGui.QTextDocument.ResourceType.ImageResource, u, image)
         cursor.insertImage(u.toLocalFile())
 
     @property
@@ -221,6 +224,7 @@ class TabBar(QtWidgets.QTabBar):
         super().__init__()
         self.tabWidget = tabwidget
         self.savedStates = []
+        self.setObjectName("tabBar")
         self.setMovable(True)
         self.setTabsClosable(True)
     
@@ -247,6 +251,7 @@ class TabWidget (QtWidgets.QTabWidget):
         self.tabCloseRequested.connect(self.closeTab)
         self.MainWindow = MainWindow
         self.moveRange = None
+        self.setObjectName("tabWidget")
         self.setMovable(True)
         self.tabbar = TabBar(self)
         self.setTabBar(self.tabbar)
