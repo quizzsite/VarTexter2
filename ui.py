@@ -118,7 +118,7 @@ class Ui_MainWindow(object):
             f.close()
         self.packageDirs = data.get("packageDirs")
         if self.packageDirs:
-            self.packageDirs = self.packageDirs.get(StaticInfo.get_platform())
+            self.packageDirs = StaticInfo.replacePaths(self.packageDirs.get(StaticInfo.get_platform()))
             self.themesDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Themes"))
             self.pluginsDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Plugins"))
         self.MainWindow.appName = data.get("appName")
@@ -192,7 +192,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.pl = PluginManager(self.pluginsDir, self)
 
         self.api.loadThemes()
-        self.api.setTheme("style.qss")
+        self.api.registerCommand("setTheme")
+        self.api.executeCommand("setTheme style.qss")
         
         if self.mb:        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm:        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
@@ -206,10 +207,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         if self.contextMenu:
             self.contextMenu.exec(self.mapToGlobal(event.pos()))
 
-    def settheme(self, theme):
-        if os.path.isfile(f"ui/style/{theme[0]}"):
-            with open(f"ui/style/{theme[0]}", "r") as file:
-                self.MainWindow.setStyleSheet(file.read())
+    def setTheme(self, theme):
+        themePath = os.path.join(self.themesDir, theme[0])
+        if os.path.isfile(themePath):
+            self.setStyleSheet(open(themePath, "r+").read())
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

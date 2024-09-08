@@ -1,10 +1,6 @@
-import uuid, platform, os
+import uuid, platform, os, re
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import pyqtSlot
-from enum import Enum
-
-class DWMWINDOWATTRIBUTE(Enum):
-    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
 class ConsoleWidget(QtWidgets.QDockWidget):
     def __init__(self, window):
@@ -17,22 +13,27 @@ class ConsoleWidget(QtWidgets.QDockWidget):
         self.verticalLayout = QtWidgets.QVBoxLayout(self.consoleWidget)
         self.verticalLayout.setObjectName("verticalLayout")
         self.textEdit = QtWidgets.QTextEdit(parent=self.consoleWidget)
-        # self.textEdit.setReadOnly(True)
+        self.textEdit.setReadOnly(True)
         self.textEdit.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.NoTextInteraction)
         self.setStyleSheet("color: white;")
-        self.textEdit.setObjectName("textEdit")
+        self.textEdit.setObjectName("consoleOutput")
         self.verticalLayout.addWidget(self.textEdit)
         self.lineEdit = QtWidgets.QLineEdit(parent=self.consoleWidget)
         self.lineEdit.setMouseTracking(False)
         self.lineEdit.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.lineEdit.setCursorMoveStyle(QtCore.Qt.CursorMoveStyle.LogicalMoveStyle)
-        self.lineEdit.setObjectName("lineEdit")
+        self.lineEdit.setObjectName("consoleCommandLine")
         self.verticalLayout.addWidget(self.lineEdit)
         self.setWidget(self.consoleWidget)
         self.lineEdit.returnPressed.connect(self.sendCommand)
     def sendCommand(self):
-        self.window.api.executeCommand(self.lineEdit.text())
-        self.lineEdit.clear()
+        text = self.lineEdit.text()
+        if text:
+            if text == "vtapi":
+                self.window.logger.log += str(self.window.api)
+            else:
+                self.window.api.executeCommand(self.lineEdit.text())
+                self.lineEdit.clear()
     def closeEvent(self, e):
         self.window.console = None
         e.accept()
@@ -42,13 +43,14 @@ class MiniMap(QtWidgets.QTextEdit):
         super().__init__(*args, **kwargs)
         self.setReadOnly(True)
         self.setFixedWidth(150)
+        self.setObjectName("miniMap")
         self.setTextInteractionFlags (QtCore.Qt.TextInteractionFlag.NoTextInteraction) 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self._isDragging = False
-        self.setStyleSheet("QTextEdit { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")
+        self.setStyleSheet("QTextEdit#miniMap { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; }")
 
     def setTextEdit(self, text_edit):
         self.text_edit = text_edit
@@ -78,7 +80,7 @@ class MiniMap(QtWidgets.QTextEdit):
         self.viewport().update()
 
     def mousePressEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self._isDragging = True
             self.sync_scroll_from_position(event.pos())
         super().mousePressEvent(event)
@@ -91,7 +93,7 @@ class MiniMap(QtWidgets.QTextEdit):
         self.textCursor().clearSelection()
 
     def mouseReleaseEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self.textCursor().clearSelection()
             self._isDragging = False
         super().mouseReleaseEvent(event)
@@ -268,7 +270,7 @@ class TabWidget (QtWidgets.QTabWidget):
 
     def eventFilter(self, source, event):
         if source == self.tabBar():
-            if event.type() == QtCore.QEvent.MouseButtonPress and event.buttons() == QtCore.Qt.LeftButton:
+            if event.type() == QtCore.QEvent.MouseButtonPress and event.buttons() == QtCore.Qt.MouseButton.LeftButton:
                 QtCore.QTimer.singleShot(0, self.setMoveRange)
             elif event.type() == QtCore.QEvent.MouseButtonRelease:
                 self.moveRange = None
@@ -338,31 +340,42 @@ class StaticInfo:
 
     @staticmethod
     def replace_consts(data, constants):
-        if isinstance(data, dict):
-            return {key: StaticInfo.replace_consts(value, constants) for key, value in data.items()}
-        elif isinstance(data, list):
-            return [StaticInfo.replace_consts(item, constants) for item in data]
-        elif isinstance(data, str):
-            try:
-                return data.format(**constants)
-            except KeyError as e:
-                print(f"Missing key in constants: {e}")
-                return data
-            except ValueError:
-                return data.replace('{', '{{').replace('}', '}}')
-        return data
+        stack = [data]
+        result = data
+
+        while stack:
+            current = stack.pop()
+            
+            if isinstance(current, dict):
+                items = list(current.items())
+                for key, value in items:
+                    if isinstance(value, (dict, list)):
+                        stack.append(value)
+                    elif isinstance(value, str):
+                        try:
+                            current[key] = value.format(**constants)
+                        except KeyError as e:
+                            print(f"Missing key in constants: {e}")
+                        except ValueError:
+                            current[key] = value.replace('{', '{{').replace('}', '}}')
+                        
+            elif isinstance(current, list):
+                items = list(current)
+                for i, item in enumerate(items):
+                    if isinstance(item, (dict, list)):
+                        stack.append(item)
+                    elif isinstance(item, str):
+                        try:
+                            current[i] = item.format(**constants)
+                        except KeyError as e:
+                            print(f"Missing key in constants: {e}")
+                        except ValueError:
+                            current[i] = item.replace('{', '{{').replace('}', '}}')
+
+        return result
     @staticmethod
     def replacePaths(data):
-        path=data
-        while '%' in path:
-            start_index = path.find('%')
-            end_index = path.find('%', start_index + 1)
-            if start_index == -1 or end_index == -1:
-                break
-
-            env_var = path[start_index + 1:end_index]
-            env_value = os.getenv(env_var, f'%{env_var}%')
-            path = path[:start_index] + env_value + path[end_index + 1:]
-        
-        return path
-    
+        def replace_var(match):
+            env_var = match.group(1)
+            return os.getenv(env_var, f'%{env_var}%')
+        return re.sub(r'%([^%]+)%', replace_var, data)

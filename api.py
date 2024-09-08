@@ -54,8 +54,8 @@ class VtAPI(QObject):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.__version__ = 1.02
         self.__window = parent
+        self.__version__ = self.__window.__version__
         self.menu_map = {}
         self.commands = {}
         self.setTreeWidgetModel("/")
@@ -64,6 +64,9 @@ class VtAPI(QObject):
         self.__window.treeView.clicked.connect(self.onClicked)
         self.__window.treeView.activated.connect(self.onActivated)
         # self.__window.treeView.customContextMenuRequested.connect()
+
+    def __str__(self):
+        return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""
 
     def onDoubleClicked(self, index):        self.treeWidgetDoubleClicked.emit(index)
 
@@ -169,14 +172,17 @@ class VtAPI(QObject):
         if os.path.isdir(self.__window.themesDir):
             with open(self.__window.mb, "r+") as file:
                 menus = json.load(file)
-                for menu in menus:
-                    themeMenu = self.findMenu(menu, "themes")
-                    if themeMenu:
-                        themeMenu["children"] = [{"caption": theme, "command": f"settheme {theme}"} for theme in os.listdir(self.__window.themesDir)]
-                        break
-            with open("ui/Main.mb", "w+") as file:
-                file.write(json.dumps(menus))
                 file.close()
+            themeMenu = None
+            for menu in menus:
+                themeMenu = self.findMenu(menu, "themes")
+            if themeMenu:
+                themeMenu["children"].clear()
+                for theme in os.listdir(self.__window.themesDir):
+                    if os.path.isfile(os.path.join(self.__window.themesDir, theme)):
+                        themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
+                json.dump(menus, open(self.__window.mb, "w+"))
+
     def executeCommand(self, command):
         commandnargs = command.split()
         c = self.commands.get(commandnargs[0])
@@ -194,6 +200,8 @@ class VtAPI(QObject):
             except Exception as e:
                 print(e)
                 self.__window.logger.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
+        else:
+            self.__window.logger.log += f"\nCommand '{command}' not found"
 
     def initAPI(self, plugin):
         sys.path.insert(0, os.path.dirname(plugin.get("path")))
