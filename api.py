@@ -390,3 +390,7 @@ class VtAPI(QObject):
         themePath = os.path.join(self.__window.themesDir, theme)
         if os.path.isfile(themePath):
             self.__window.setStyleSheet(open(themePath, "r+").read())
+    def getLog(self):
+        return self.__window.logger.log
+    def setLogMsg(self, msg):
+        self.__window.logger.log += f"\n{msg}"
