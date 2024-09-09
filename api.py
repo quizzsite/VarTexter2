@@ -174,7 +174,7 @@ class VtAPI(QObject):
         return None
 
     def loadThemes(self):
-        if os.path.isdir(self.__window.themesDir):
+        if os.path.isdir(self.__window.themesDir) and os.path.isfile(self.__window.mb):
             with open(self.__window.mb, "r+") as file:
                 menus = json.load(file)
                 file.close()
@@ -213,13 +213,16 @@ class VtAPI(QObject):
         main_module = plugin.get("main")
         if main_module.endswith('.py'):
             main_module = main_module[:-3]
-            plug = self.importModule(
+            try:
+                plug = self.importModule(
                 str(os.path.join(os.path.dirname(plugin.get("path")), plugin.get("main"))),
                 plugin.get("name") + "Plugin"
-            )
-            if hasattr(plug, "initAPI"):
-                plug.initAPI(self)
-            return plug
+                )
+                if hasattr(plug, "initAPI"):
+                    plug.initAPI(self)
+                return plug
+            except Exception as e:
+                self.__window.logger.log += f"Failed to import module '{plugin.get('path')}': '{e}'"
 
     def importModule(self, path, n):
         spec = importlib.util.spec_from_file_location(n, path)

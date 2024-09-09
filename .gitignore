@@ -8,3 +8,7 @@
 /menu.json
 /main.spec
 /*/*/Lib/
+/build
+/dist
+/ui.exe
+/ui.spec

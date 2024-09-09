@@ -1,4 +1,4 @@
-import sys, json
+import sys, json, os
 from PyQt6 import QtCore, QtWidgets
 from datetime import datetime
 import msgpack
@@ -130,10 +130,19 @@ class Ui_MainWindow(object):
         self.cm = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("cm")))
         self.sc = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("sc")))
 
+    def settingsHotKeys(self):
+        if os.path.isfile(self.sc):
+            openFile = self.api.getCommand("openFile")
+            if openFile:
+                openFile.get("command")([self.sc])
+            else:
+                QtWidgets.QMessageBox.warning(self.MainWindow, self.MainWindow.appName+" - Warning", f"Open file function not found. You can find file at {self.sc}")
+
     def windowInitialize(self):
+        [os.makedirs(dir) for dir in [self.themesDir, self.pluginsDir, self.uiDir] if not os.path.isdir(dir)]
         tabLog = {}
         try:
-            with open(os.path.join(self.packageDirs, 'data.msgpack'), 'rb') as f:
+            with open(os.path.join(self.packageDirs, 'data.msgpack'), 'ab') as f:
                 packed_data = f.read()
                 tabLog = msgpack.unpackb(packed_data, raw=False)
         except ValueError:
@@ -182,7 +191,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             "platform": StaticInfo.get_platform(),
             "basedir": StaticInfo.get_basedir(),
             "filedir": StaticInfo.get_filedir(__file__),
-            "username": os.getlogin()
+            "username": os.getlogin(),
         }
 
         self.contextMenu = QtWidgets.QMenu(self)
@@ -195,11 +204,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.api.loadThemes()
         self.api.registerCommand("setTheme")
+        # self.api.registerCommand("settingsHotKeys")
         self.api.executeCommand("setTheme style.qss")
-        
-        if self.mb:        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
-        if self.cm:        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
-        if self.sc:
+
+        if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
+        if self.cm and os.path.isfile(self.cm):        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
+        if self.sc and os.path.isfile(self.sc):
             for shortcut in json.load(open(self.sc, "r+")):
                 self.api.createShortcut(shortcut) 
 
@@ -210,9 +220,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.contextMenu.exec(self.mapToGlobal(event.pos()))
 
     def setTheme(self, theme):
+        os.chdir(self.themesDir)
         themePath = os.path.join(self.themesDir, theme[0])
         if os.path.isfile(themePath):
             self.setStyleSheet(open(themePath, "r+").read())
+        os.chdir(".")
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
