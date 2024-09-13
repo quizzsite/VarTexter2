@@ -31,6 +31,7 @@ class ConsoleWidget(QtWidgets.QDockWidget):
         if text:
             if text == "vtapi":
                 self.window.logger.log += str(self.window.api)
+                self.lineEdit.clear()
             else:
                 self.window.api.executeCommand(self.lineEdit.text())
                 self.lineEdit.clear()

@@ -23,7 +23,7 @@ class PluginManager:
                     plugin = self.__window.api.initAPI(plugInfo)
                     # if int(self.__window.api.__version__) == int(self.__window.appVersion):
                     self.plugins.append(plugInfo)
-                    self.__window.logger.log += f"\nFound new plugin with info {plugInfo}"
+                    self.__window.api.setLogMsg(f"\nFound new plugin with info {plugInfo}")
                     self.__window.api.regAll(plugin)
         finally:
             sys.path.pop(0)
@@ -34,7 +34,7 @@ class PluginManager:
         if os.path.isdir(os.path.join(self.plugin_directory, pluginDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini"):
             plugInfo = self.__window.api.load_ini_file(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
             self.plugins.append(plugInfo)
-            self.__window.logger.log += f"\nFound new plugin with info {plugInfo}"
+            self.setLogMsg(f"\nFound new plugin with info {plugInfo}")
             self.__window.api.regAll()
             self.__window.api.initAPI(plugInfo)
             sys.path.pop(0)
@@ -196,17 +196,17 @@ class VtAPI(QObject):
                 args = commandnargs[1:]
                 if args:
                     out = c.get("command")(args)
-                    self.__window.logger.log += f"\nExecuted command '{command}' with args '{args}'"
+                    self.setLogMsg(f"\nExecuted command '{command}' with args '{args}'")
                 else:
                     out = c.get("command")()
-                    self.__window.logger.log += f"\nExecuted command '{command}'"
+                    self.setLogMsg(f"\nExecuted command '{command}'")
                 if out:
-                    self.__window.logger.log += f"\nCommand '{command}' returned '{out}'"
+                    self.setLogMsg(f"\nCommand '{command}' returned '{out}'")
             except Exception as e:
                 print(e)
-                self.__window.logger.log += f"\nFound error in '{command}' - '{e}'.\nInfo: {c}"
+                self.setLogMsg(f"\nFound error in '{command}' - '{e}'.\nInfo: {c}")
         else:
-            self.__window.logger.log += f"\nCommand '{command}' not found"
+            self.setLogMsg(f"\nCommand '{command}' not found")
 
     def initAPI(self, plugin):
         sys.path.insert(0, os.path.dirname(plugin.get("path")))
@@ -222,7 +222,7 @@ class VtAPI(QObject):
                     plug.initAPI(self)
                 return plug
             except Exception as e:
-                self.__window.logger.log += f"Failed to import module '{plugin.get('path')}': '{e}'"
+                self.setLogMsg(f"\nFailed to import module '{plugin.get('path')}': '{e}'")
 
     def importModule(self, path, n):
         spec = importlib.util.spec_from_file_location(n, path)
@@ -241,7 +241,7 @@ class VtAPI(QObject):
                 self.command["plugin"] = pl
                 self.commands[commandN] = self.command
             except (ImportError, AttributeError) as e:
-                self.__window.logger.log += f"\nError when registering '{commandN}' from '{pl}': {e}"
+                self.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
         else:
             self.command = {}
             command_func = getattr(self.__window, commandN, None)
@@ -250,18 +250,18 @@ class VtAPI(QObject):
                 self.command["plugin"] = None
                 self.commands[commandN] = self.command
             else:
-                self.__window.logger.log += f"\nCommand '{commandN}' not found"
+                self.setLogMsg(f"\nCommand '{commandN}' not found")
 
     def removeCommand(self, command_name):
         if command_name in self.commands:
             del self.commands[command_name]
-            self.__window.logger.log += f"\nUnregistered command '{command_name}'"
+            self.setLogMsg(f"\nUnregistered command '{command_name}'")
 
     def removeMenu(self, menu_id):
         if menu_id in self.menu_map:
             menu = self.menu_map.pop(menu_id)
             menu.deleteLater()
-            self.__window.logger.log += f"\nRemoved menu with ID '{menu_id}'"
+            self.setLogMsg(f"\nRemoved menu with ID '{menu_id}'")
 
     def removeShortcut(self, shortcut_info):
         keys = shortcut_info.get("keys", [])
@@ -275,7 +275,7 @@ class VtAPI(QObject):
         
         if action:
             self.__window.removeAction(action)
-            self.__window.logger.log += f"\nRemoved shortcut '{command}'"
+            self.setLogMsg(f"\nRemoved shortcut '{command}'")
 
     def getCommands(self):
         return self.commands
@@ -362,6 +362,10 @@ class VtAPI(QObject):
     def getTextSelection(self, i):
         tab = self.__window.tabWidget.widget(i)
         return tab.textEdit.textCursor().selectedText()
+
+    def getTextSelectionCoords(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return tab.textEdit.textCursor().position()
 
     def setTextSelection(self, i, s, e):
         tab = self.__window.tabWidget.widget(i)

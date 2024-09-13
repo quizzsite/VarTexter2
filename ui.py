@@ -138,28 +138,46 @@ class Ui_MainWindow(object):
             else:
                 QtWidgets.QMessageBox.warning(self.MainWindow, self.MainWindow.appName+" - Warning", f"Open file function not found. You can find file at {self.sc}")
 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        files = [url.toLocalFile() for url in event.mimeData().urls()]
+        openFile = self.api.getCommand("openFile")
+        if openFile:
+            openFile.get("command")(files)
+        else:
+            QtWidgets.QMessageBox.warning(self.MainWindow, self.MainWindow.appName+" - Warning", f"Open file function not found. Check your Open&Save plugin at {os.path.join(self.pluginsDir, 'Open&Save')}")
+
+
     def windowInitialize(self):
         [os.makedirs(dir) for dir in [self.themesDir, self.pluginsDir, self.uiDir] if not os.path.isdir(dir)]
         tabLog = {}
+        stateFile = os.path.join(self.packageDirs, 'data.msgpack')
         try:
-            with open(os.path.join(self.packageDirs, 'data.msgpack'), 'ab') as f:
-                packed_data = f.read()
-                tabLog = msgpack.unpackb(packed_data, raw=False)
+            if os.path.isfile(stateFile):
+                with open(stateFile, 'rb') as f:
+                    packed_data = f.read()
+                    tabLog = msgpack.unpackb(packed_data, raw=False)
+                    for tab in tabLog.get("tabs") or []:
+                        tab = tabLog.get("tabs").get(tab)
+                        self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
+                        self.api.textChangeEvent(self.api.currentTabIndex())
+                        self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.currentTabIndex())} - VarTexter2")
+                        self.api.setTextSelection(self.api.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
+                    if tabLog.get("activeTab"):
+                        self.tabWidget.setCurrentIndex(int(tabLog.get("activeTab")))
         except ValueError:
-            self.logger.log += "\nFailed to restore window state"
-        for tab in tabLog.get("tabs") or []:
-            tab = tabLog.get("tabs").get(tab)
-            self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
-            self.api.textChangeEvent(self.api.currentTabIndex())
-            self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.currentTabIndex())} - VarTexter2")
-            self.api.setTextSelection(self.api.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
-        if tabLog.get("activeTab"):
-            self.tabWidget.setCurrentIndex(int(tabLog.get("activeTab")))
+            self.logger.log += f"\nFailed to restore window state. No file found at {stateFile}"
+            open(stateFile)
+
 
     def closeEvent(self, e=False):
         tabsInfo = {}
         tabs = tabsInfo["tabs"] = {}
         tabsInfo["activeTab"] = str(self.tabWidget.currentIndex())
+        stateFile = os.path.join(self.packageDirs, 'data.msgpack')
         for idx in range(self.tabWidget.count()):
             widget = self.tabWidget.widget(idx)
             if widget and isinstance(widget, QtWidgets.QWidget):
@@ -175,7 +193,11 @@ class Ui_MainWindow(object):
                     "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
         tabs = {str(idx): tabs[str(idx)] for idx in range(len(tabs))}
-        with open(os.path.join(self.packageDirs, 'data.msgpack'), 'wb') as f:
+        if os.path.isfile(stateFile):
+            mode = 'wb'
+        else:
+            mode = 'ab'
+        with open(stateFile, mode) as f:
             packed_data = msgpack.packb(tabsInfo, use_bin_type=True)
             f.write(packed_data)
 
@@ -225,6 +247,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         if os.path.isfile(themePath):
             self.setStyleSheet(open(themePath, "r+").read())
         os.chdir(".")
+    
+    def argvParse(self):
+        argv = sys.argv[1:]
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

@@ -57,6 +57,7 @@ mb=Main.mb
                 {
                     "caption": "Текст команды",
                     "command": "command" Команда без аргументов
+                    "shortcut": "ctrl+shift+y"
                 },
                 {
                     "caption": "Текст команды",
