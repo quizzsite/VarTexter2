@@ -363,9 +363,9 @@ class VtAPI(QObject):
         tab = self.__window.tabWidget.widget(i)
         return tab.textEdit.textCursor().selectedText()
 
-    def getTextSelectionCoords(self, i):
+    def getTextCursor(self, i):
         tab = self.__window.tabWidget.widget(i)
-        return tab.textEdit.textCursor().position()
+        return tab.textEdit.textCursor()
 
     def setTextSelection(self, i, s, e):
         tab = self.__window.tabWidget.widget(i)

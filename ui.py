@@ -107,6 +107,11 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
         self.api.setTab(-1)
 
+    def closeTab(self, i: int = None):
+        if not i:
+            i = self.api.currentTabIndex()
+        self.tabWidget.closeTab(i)
+
     def logConsole(self):
         if not self.console:
             self.console = ConsoleWidget(self.MainWindow)
@@ -115,7 +120,6 @@ class Ui_MainWindow(object):
 
     def settings(self):
         self.settFile = open(os.path.join(os.getcwd(), 'ui/Main.settings'), 'r+', encoding='utf-8')
-        print(os.path.join(os.getcwd(), 'ui/Main.settings'))
         self.settData = json.load(self.settFile)
         self.packageDirs = self.settData.get("packageDirs")
         if self.packageDirs:
@@ -174,19 +178,21 @@ class Ui_MainWindow(object):
 
 
     def closeEvent(self, e: QtCore.QEvent):
-        self.saveWState(e)
+        self.saveWState()
+        self.api.windowClosed.emit()
 
         e.accept()
 
-    def saveWState(self, e):
+    def saveWState(self):
         tabsInfo = {}
         tabs = tabsInfo["tabs"] = {}
-        tabsInfo["activeTab"] = str(self.tabWidget.currentIndex())
+        i = self.api.currentTabIndex()
+        tabsInfo["activeTab"] = str(i)
         stateFile = os.path.join(self.packageDirs, 'data.msgpack')
         for idx in range(self.tabWidget.count()):
             widget = self.tabWidget.widget(idx)
             if widget and isinstance(widget, QtWidgets.QWidget):
-                cursor = widget.textEdit.textCursor()
+                cursor = self.api.getTextCursor(i)
                 start = cursor.selectionStart()
                 end = cursor.selectionEnd()
                 tabs[str(idx)] = {
@@ -205,10 +211,7 @@ class Ui_MainWindow(object):
         with open(stateFile, mode) as f:
             packed_data = msgpack.packb(tabsInfo, use_bin_type=True)
             f.write(packed_data)
-
-        self.api.windowClosed.emit()
         self.settFile.close()
-        e.accept()
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -231,7 +234,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.api.loadThemes()
         self.api.registerCommand("setTheme")
-        # self.api.registerCommand("settingsHotKeys")
+        self.api.registerCommand("settingsHotKeys")
         self.api.executeCommand("setTheme style.qss")
 
         if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
