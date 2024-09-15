@@ -114,21 +114,21 @@ class Ui_MainWindow(object):
             self.MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.console)
 
     def settings(self):
-        with open('ui/Main.settings', 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            f.close()
-        self.packageDirs = data.get("packageDirs")
+        self.settFile = open(os.path.join(os.getcwd(), 'ui/Main.settings'), 'r+', encoding='utf-8')
+        print(os.path.join(os.getcwd(), 'ui/Main.settings'))
+        self.settData = json.load(self.settFile)
+        self.packageDirs = self.settData.get("packageDirs")
         if self.packageDirs:
             self.packageDirs = StaticInfo.replacePaths(self.packageDirs.get(StaticInfo.get_platform()))
             self.themesDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Themes"))
             self.pluginsDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Plugins"))
             self.uiDir = StaticInfo.replacePaths(os.path.join(self.packageDirs, "Ui"))
-        self.MainWindow.appName = data.get("appName")
-        self.MainWindow.__version__ = data.get("apiVersion")
-        self.remindOnClose = data.get("remindOnClose")
-        self.mb = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("mb")))
-        self.cm = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("cm")))
-        self.sc = StaticInfo.replacePaths(os.path.join(self.packageDirs, data.get("sc")))
+        self.MainWindow.appName = self.settData.get("appName")
+        self.MainWindow.__version__ = self.settData.get("apiVersion")
+        self.MainWindow.remindOnClose = self.settData.get("remindOnClose")
+        self.mb = StaticInfo.replacePaths(os.path.join(self.packageDirs, self.settData.get("mb")))
+        self.cm = StaticInfo.replacePaths(os.path.join(self.packageDirs, self.settData.get("cm")))
+        self.sc = StaticInfo.replacePaths(os.path.join(self.packageDirs, self.settData.get("sc")))
 
     def settingsHotKeys(self):
         if os.path.isfile(self.sc):
@@ -173,7 +173,12 @@ class Ui_MainWindow(object):
             open(stateFile)
 
 
-    def closeEvent(self, e=False):
+    def closeEvent(self, e: QtCore.QEvent):
+        self.saveWState(e)
+
+        e.accept()
+
+    def saveWState(self, e):
         tabsInfo = {}
         tabs = tabsInfo["tabs"] = {}
         tabsInfo["activeTab"] = str(self.tabWidget.currentIndex())
@@ -202,7 +207,7 @@ class Ui_MainWindow(object):
             f.write(packed_data)
 
         self.api.windowClosed.emit()
-
+        self.settFile.close()
         e.accept()
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):

@@ -6,7 +6,6 @@
         "Linux": "%HOME%/.local/share/VarTexter2",
         "OSX": "%HOME%/Library/Application Support/VarTexter2"
     },
-    "remindOnClose": true,
     "mb": "Ui/Main.mb",
     "cm": "Ui/Main.cm",
     "sc": "Ui/Main.sc"

@@ -6,6 +6,7 @@ class ConsoleWidget(QtWidgets.QDockWidget):
     def __init__(self, window):
         super().__init__()
         self.window = window
+        self.setWindowTitle(self.window.appName+" - Console")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self.setAllowedAreas(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea)
         self.consoleWidget = QtWidgets.QWidget()
@@ -177,7 +178,7 @@ class TextEdit(QtWidgets.QTextEdit):
         self.layout.addWidget(self.minimapScrollArea)
 
     def contextMenu(self, pos):
-        self.mw.textContextMenu.exec_(self.mapToGlobal(pos))
+        self.mw.textContextMenu.exec(self.mapToGlobal(pos))
 
     def canInsertFromMimeData(self, source):
         if source.hasImage():
@@ -297,11 +298,11 @@ class TabWidget (QtWidgets.QTabWidget):
             dlg = QtWidgets.QMessageBox(self)
             dlg.setWindowTitle("VarTexter2 - Exiting")
             dlg.setText("File is unsaved. Do you want to save it?")
-            dlg.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+            dlg.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No | QtWidgets.QMessageBox.StandardButton.Cancel)
 
-            yesButton = dlg.button(QtWidgets.QMessageBox.Yes)
-            noButton = dlg.button(QtWidgets.QMessageBox.No)
-            cancelButton = dlg.button(QtWidgets.QMessageBox.Cancel)
+            yesButton = dlg.button(QtWidgets.QMessageBox.StandardButton.Yes)
+            noButton = dlg.button(QtWidgets.QMessageBox.StandardButton.No)
+            cancelButton = dlg.button(QtWidgets.QMessageBox.StandardButton.Cancel)
 
             yesButton.setStyleSheet("QPushButton { color: white;}")
             noButton.setStyleSheet("QPushButton { color: white;}")
@@ -310,18 +311,18 @@ class TabWidget (QtWidgets.QTabWidget):
             
             dlg.setStyleSheet("QtWidgets.QMessageBox { background-color: black; } QLabel { color: white; }")
             
-            result = dlg.exec_()
+            result = dlg.exec()
 
-            if result == QtWidgets.QMessageBox.Yes:
+            if result == QtWidgets.QMessageBox.StandardButton.Yes:
                 self.MainWindow.api.execute_command(f"saveFile {tab.file}")
                 tab.deleteLater()
                 self.removeTab(currentIndex)
                 self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
-            elif result == QtWidgets.QMessageBox.No:
+            elif result == QtWidgets.QMessageBox.StandardButton.No:
                 tab.deleteLater()
                 self.removeTab(currentIndex)
                 self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
-            elif result == QtWidgets.QMessageBox.Cancel:
+            elif result == QtWidgets.QMessageBox.StandardButton.Cancel:
                 pass
         else:
             tab.deleteLater()

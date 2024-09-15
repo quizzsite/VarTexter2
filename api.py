@@ -32,7 +32,7 @@ class PluginManager:
     def load_plugin(self, pluginDir):
         sys.path.insert(0, pluginDir)
         if os.path.isdir(os.path.join(self.plugin_directory, pluginDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini"):
-            plugInfo = self.__window.api.load_ini_file(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
+            plugInfo = self.__window.api.load_ini_file(rf"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
             self.plugins.append(plugInfo)
             self.setLogMsg(f"\nFound new plugin with info {plugInfo}")
             self.__window.api.regAll()
@@ -49,7 +49,7 @@ class VtAPI(QObject):
     windowClosed = pyqtSignal()
 
     treeWidgetClicked = pyqtSignal(QModelIndex)
-    treeWidgetDoubleClicked = pyqtSignal(QModelIndex)
+    treeWidgetDoubleClicked = pyqtSignal(QtGui.QFileSystemModel, QModelIndex)
     treeWidgetActivated = pyqtSignal()
 
     def __init__(self, parent):
@@ -73,7 +73,7 @@ class VtAPI(QObject):
     def __str__(self):
         return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""
 
-    def onDoubleClicked(self, index):        self.treeWidgetDoubleClicked.emit(index)
+    def onDoubleClicked(self, index):        self.treeWidgetDoubleClicked.emit(self.__window.treeView.model(), index)
 
     def onClicked(self, index):        self.treeWidgetClicked.emit(index)
 
@@ -397,8 +397,9 @@ class VtAPI(QObject):
             self.__window.tabWidget.tabBar().setTabSaved(tab, False)
 
     def tabChngd(self, index):
-        self.__window.setWindowTitle(f"{self.__window.tabWidget.tabText(index)} - VarTexter2")
-        if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
+        if index > -1:
+            self.__window.setWindowTitle(f"{self.getTabFile(index) or 'Untitled'} - {self.__window.appName}")
+            if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
         self.tabChanged.emit()
 
     def dirOpenDialog(self, e=None):
@@ -415,3 +416,6 @@ class VtAPI(QObject):
         return self.__window.logger.log
     def setLogMsg(self, msg):
         self.__window.logger.log += f"\n{msg}"
+    
+    def isFile(self, path):
+        return os.path.isfile(path)
