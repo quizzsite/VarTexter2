@@ -160,15 +160,14 @@ class VtAPI(QObject):
                         action = QtGui.QAction(item.get('caption', 'Unnamed'), self.__window)
                         if 'command' in item:
                             self.registerCommand(item['command'], pl)
-                            action.triggered.connect(lambda checked, cmd=item['command']: self.executeCommand(cmd))
+                            args = item.get("args")
+                            kwargs = item.get("kwargs")
+                            action.triggered.connect(lambda checked, cmd=item['command'], args=args or [], kwargs=kwargs or {}: self.executeCommand(cmd, *args, **{**kwargs, 'checked': checked}))
                         parent.addAction(action)
                         if 'shortcut' in item:
                             action.setShortcut(QtGui.QKeySequence(item['shortcut']))
                         if 'checkable' in item:
                             action.setCheckable(item['checkable'])
-                            if 'command' in item:
-                                print("checkable",item['command'] )
-                                action.toggled.connect(lambda checked, cmd=item['command']: self.executeCommand(cmd, checked))
 
     def findAction(self, parent_menu, caption=None, command=None):
         for action in parent_menu.actions():
@@ -210,24 +209,13 @@ class VtAPI(QObject):
                         themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
                 json.dump(menus, open(self.__window.mb, "w+"))
 
-    def executeCommand(self, command, checked=None):
-        commandnargs = command.split()
-        c = self.commands.get(commandnargs[0])
+    def executeCommand(self, command, *args, **kwargs):
+        command = command.split()
+        c = self.commands.get(command[0])
         if c:
             try:
-                args = commandnargs[1:]
-                if args:
-                    if checked != None:
-                        out = c.get("command")(args, checked=checked)
-                    else:
-                        out = c.get("command")(args)
-                    self.setLogMsg(f"\nExecuted command '{command}' with args '{args}'")
-                else:
-                    if checked != None:
-                        out = c.get("command")(checked=checked)
-                    else:
-                        out = c.get("command")()
-                    self.setLogMsg(f"\nExecuted command '{command}'")
+                out = c.get("command")(*args, **kwargs)
+                self.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
                 if out:
                     self.setLogMsg(f"\nCommand '{command}' returned '{out}'")
             except Exception as e:

@@ -125,6 +125,10 @@ class Ui_MainWindow(object):
         else:
             if not self.console:
                 self.logConsole(checked=True)
+            else:
+                self.console.deleteLater()
+                self.console = None
+
     def settings(self):
         self.settFile = open(os.path.join(os.getcwd(), 'ui/Main.settings'), 'r+', encoding='utf-8')
         self.settData = json.load(self.settFile)
@@ -242,7 +246,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.api.loadThemes()
         self.api.registerCommand("setTheme")
         self.api.registerCommand("settingsHotKeys")
-        self.api.executeCommand("setTheme style.qss")
+        self.api.executeCommand("setTheme", ["style.qss"])
 
         if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm and os.path.isfile(self.cm):        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
