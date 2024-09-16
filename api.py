@@ -123,6 +123,7 @@ class VtAPI(QObject):
     def createShortcut(self, shortcut_info, pl=None):
         keys = shortcut_info.get("keys", [])
         command = shortcut_info.get("command")
+        checkable = shortcut_info.get("checkable")
         text = shortcut_info.get("text", "Action")
         
         if not keys or not command:
@@ -163,6 +164,27 @@ class VtAPI(QObject):
                         parent.addAction(action)
                         if 'shortcut' in item:
                             action.setShortcut(QtGui.QKeySequence(item['shortcut']))
+                        if 'checkable' in item:
+                            action.setCheckable(item['checkable'])
+                            if 'command' in item:
+                                print("checkable",item['command'] )
+                                action.toggled.connect(lambda checked, cmd=item['command']: self.executeCommand(cmd, checked))
+
+    def findAction(self, parent_menu, caption=None, command=None):
+        for action in parent_menu.actions():
+            if caption and action.text() == caption:
+                return action
+            if command and hasattr(action, 'command') and action.command == command:
+                return action
+
+        for action in parent_menu.actions():
+            if action.menu():
+                found_action = self.findAction(action.menu(), caption, command)
+                if found_action:
+                    return found_action
+
+        return None
+
     def findMenu(self, menu, n):
         if menu:
             if menu.get("id") == n:
@@ -188,17 +210,23 @@ class VtAPI(QObject):
                         themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
                 json.dump(menus, open(self.__window.mb, "w+"))
 
-    def executeCommand(self, command):
+    def executeCommand(self, command, checked=None):
         commandnargs = command.split()
         c = self.commands.get(commandnargs[0])
         if c:
             try:
                 args = commandnargs[1:]
                 if args:
-                    out = c.get("command")(args)
+                    if checked != None:
+                        out = c.get("command")(args, checked=checked)
+                    else:
+                        out = c.get("command")(args)
                     self.setLogMsg(f"\nExecuted command '{command}' with args '{args}'")
                 else:
-                    out = c.get("command")()
+                    if checked != None:
+                        out = c.get("command")(checked=checked)
+                    else:
+                        out = c.get("command")()
                     self.setLogMsg(f"\nExecuted command '{command}'")
                 if out:
                     self.setLogMsg(f"\nCommand '{command}' returned '{out}'")
@@ -394,6 +422,7 @@ class VtAPI(QObject):
     def textChngd(self):
         tab = self.__window.tabWidget.currentWidget()
         if tab:
+            print(tab)
             self.__window.tabWidget.tabBar().setTabSaved(tab, False)
 
     def tabChngd(self, index):

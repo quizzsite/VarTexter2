@@ -107,17 +107,24 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
         self.api.setTab(-1)
 
+        self.tab.textEdit.textChanged.connect(self.api.textChngd)
+        self.tab.textEdit.document().contentsChanged.connect(self.api.textChngd)
+
     def closeTab(self, i: int = None):
         if not i:
             i = self.api.currentTabIndex()
         self.tabWidget.closeTab(i)
 
-    def logConsole(self):
-        if not self.console:
+    def logConsole(self, checked=None):
+        if checked:
             self.console = ConsoleWidget(self.MainWindow)
             self.console.textEdit.append(self.logger.log)
             self.MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.console)
-
+        elif checked == False:
+            self.console.close()
+        else:
+            if not self.console:
+                self.logConsole(checked=True)
     def settings(self):
         self.settFile = open(os.path.join(os.getcwd(), 'ui/Main.settings'), 'r+', encoding='utf-8')
         self.settData = json.load(self.settFile)
@@ -245,9 +252,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.pl.load_plugins()
 
-    def contextMenuEvent(self, event):
-        if self.contextMenu:
-            self.contextMenu.exec(self.mapToGlobal(event.pos()))
+    # def contextMenuEvent(self, event):
+    #     if self.contextMenu:
+    #         self.contextMenu.exec(self.mapToGlobal(event.pos()))
 
     def setTheme(self, theme):
         os.chdir(self.themesDir)

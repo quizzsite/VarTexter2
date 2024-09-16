@@ -49,7 +49,7 @@ class MiniMap(QtWidgets.QTextEdit):
         self.setTextInteractionFlags (QtCore.Qt.TextInteractionFlag.NoTextInteraction) 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
+        # self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self._isDragging = False
         self.setStyleSheet("QTextEdit#miniMap { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; color: white;}")
@@ -65,7 +65,12 @@ class MiniMap(QtWidgets.QTextEdit):
         self.update_minimap()
         self.viewport().update()
 
-    def contextMenuEvent(self, event): event.ignore()
+    def contextMenu(self):
+        menu = QtWidgets.QMenu()
+        a = QtGui.QAction("dwkde[wek]", self)
+        a.setCheckable(True)
+        menu.addAction(a)
+        menu.exec(QtGui.QCursor.pos())
 
     @pyqtSlot()
     def syncScroll(self):
@@ -172,6 +177,8 @@ class TextEdit(QtWidgets.QTextEdit):
         self.minimapScrollArea = QtWidgets.QScrollArea()
         self.minimapScrollArea.setWidget(self.minimap)
         self.minimapScrollArea.setFixedWidth(150)
+        self.minimapScrollArea.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        self.minimapScrollArea.customContextMenuRequested.connect(self.minimap.contextMenu)
         self.minimapScrollArea.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.minimapScrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
