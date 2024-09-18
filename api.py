@@ -27,7 +27,6 @@ class PluginManager:
                     self.__window.api.regAll(plugin)
         finally:
             sys.path.pop(0)
-            os.chdir(self.__window.packageDirs)
             self.__window.api.commandsLoaded.emit()
 
     def load_plugin(self, pluginDir):
@@ -163,8 +162,14 @@ class VtAPI(QObject):
                             self.registerCommand(item['command'], pl)
                             args = item.get("args")
                             kwargs = item.get("kwargs")
-                            action.triggered.connect(lambda checked, cmd=item['command'], args=args or [], kwargs=kwargs or {}: self.executeCommand(cmd, *args, **{**kwargs, 'checked': checked}))
-                        parent.addAction(action)
+                            action.triggered.connect(lambda checked, cmd=item['command'], args=args or [], kwargs=kwargs or {}: 
+                                self.executeCommand(
+                                    cmd, 
+                                    *args, 
+                                    **({**kwargs, 'checked': checked} if action.isCheckable() else kwargs)
+                                )
+                            )
+                            parent.addAction(action)
                         if 'shortcut' in item:
                             action.setShortcut(QtGui.QKeySequence(item['shortcut']))
                         if 'checkable' in item:
@@ -211,8 +216,7 @@ class VtAPI(QObject):
                 json.dump(menus, open(self.__window.mb, "w+"))
 
     def executeCommand(self, command, *args, **kwargs):
-        command = command.split()
-        c = self.__commands.get(command[0])
+        c = self.__commands.get(command)
         if c:
             try:
                 out = c.get("command")(*args, **kwargs)
@@ -411,7 +415,6 @@ class VtAPI(QObject):
     def textChngd(self):
         tab = self.__window.tabWidget.currentWidget()
         if tab:
-            print(tab)
             self.__window.tabWidget.tabBar().setTabSaved(tab, False)
 
     def tabChngd(self, index):

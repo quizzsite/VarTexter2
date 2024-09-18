@@ -222,6 +222,25 @@ class Ui_MainWindow(object):
             f.write(packed_data)
         self.settFile.close()
 
+    def undo(self, i):
+        tab = self.tabWidget.widget(i)
+        tab.textEdit.undo()
+
+    def redo(self, i):
+        tab = self.tabWidget.widget(i)
+        tab.textEdit.redo()
+
+    def cut(self, i):
+        tab = self.tabWidget.widget(i)
+        tab.textEdit.cut()
+
+    def copy(self, i):
+        tab = self.tabWidget.widget(i)
+        tab.textEdit.copy()
+
+    def paste(self, i):
+        tab = self.tabWidget.widget(i)
+        tab.textEdit.paste()
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
@@ -244,6 +263,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.api.loadThemes()
         self.api.registerCommand("setTheme")
         self.api.registerCommand("settingsHotKeys")
+        self.api.registerCommand("argvParse")
+
         self.api.executeCommand("setTheme", ["style.qss"])
 
         if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
@@ -255,14 +276,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.pl.load_plugins()
 
     def setTheme(self, theme):
-        os.chdir(self.themesDir)
         themePath = os.path.join(self.themesDir, theme[0])
         if os.path.isfile(themePath):
             self.setStyleSheet(open(themePath, "r+").read())
-        os.chdir(".")
+        os.chdir(os.getcwd())
     
     def argvParse(self):
         argv = sys.argv[1:]
+        return argv
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
