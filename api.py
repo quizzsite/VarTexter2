@@ -27,6 +27,7 @@ class PluginManager:
                     self.__window.api.regAll(plugin)
         finally:
             sys.path.pop(0)
+            os.chdir(self.__window.packageDirs)
             self.__window.api.commandsLoaded.emit()
 
     def load_plugin(self, pluginDir):
@@ -56,8 +57,8 @@ class VtAPI(QObject):
         super().__init__(parent)
         self.__window = parent
         self.__version__ = self.__window.__version__
-        self.menu_map = {}
-        self.commands = {}
+        self.__menu_map = {}
+        self.__commands = {}
         self.setTreeWidgetModel("/")
 
         self.__window.treeView.doubleClicked.connect(self.onDoubleClicked)
@@ -144,7 +145,7 @@ class VtAPI(QObject):
         for item in data:
             menu_id = item.get('id')
             if menu_id:
-                menu = self.menu_map.setdefault(menu_id, QtWidgets.QMenu(item.get('caption', 'Unnamed'), self.__window))
+                menu = self.__menu_map.setdefault(menu_id, QtWidgets.QMenu(item.get('caption', 'Unnamed'), self.__window))
                 parent.addMenu(menu)
                 if 'children' in item:
                     self.parseMenu(item['children'], menu, pl)
@@ -211,7 +212,7 @@ class VtAPI(QObject):
 
     def executeCommand(self, command, *args, **kwargs):
         command = command.split()
-        c = self.commands.get(command[0])
+        c = self.__commands.get(command[0])
         if c:
             try:
                 out = c.get("command")(*args, **kwargs)
@@ -255,7 +256,7 @@ class VtAPI(QObject):
                 self.command = {}
                 self.command["command"] = command_func
                 self.command["plugin"] = pl
-                self.commands[commandN] = self.command
+                self.__commands[commandN] = self.command
             except (ImportError, AttributeError) as e:
                 self.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
         else:
@@ -264,18 +265,18 @@ class VtAPI(QObject):
             if command_func:
                 self.command["command"] = command_func
                 self.command["plugin"] = None
-                self.commands[commandN] = self.command
+                self.__commands[commandN] = self.command
             else:
                 self.setLogMsg(f"\nCommand '{commandN}' not found")
 
     def removeCommand(self, command_name):
-        if command_name in self.commands:
-            del self.commands[command_name]
+        if command_name in self.__commands:
+            del self.__commands[command_name]
             self.setLogMsg(f"\nUnregistered command '{command_name}'")
 
     def removeMenu(self, menu_id):
-        if menu_id in self.menu_map:
-            menu = self.menu_map.pop(menu_id)
+        if menu_id in self.__menu_map:
+            menu = self.__menu_map.pop(menu_id)
             menu.deleteLater()
             self.setLogMsg(f"\nRemoved menu with ID '{menu_id}'")
 
@@ -294,10 +295,10 @@ class VtAPI(QObject):
             self.setLogMsg(f"\nRemoved shortcut '{command}'")
 
     def getCommands(self):
-        return self.commands
+        return self.__commands
 
     def getCommand(self, name):
-        return self.commands.get(name)
+        return self.__commands.get(name)
 
     def textChangeEvent(self, i):
         tab = self.__window.tabWidget.widget(i)

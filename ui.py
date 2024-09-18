@@ -165,7 +165,6 @@ class Ui_MainWindow(object):
         else:
             QtWidgets.QMessageBox.warning(self.MainWindow, self.MainWindow.appName+" - Warning", f"Open file function not found. Check your Open&Save plugin at {os.path.join(self.pluginsDir, 'Open&Save')}")
 
-
     def windowInitialize(self):
         [os.makedirs(dir) for dir in [self.themesDir, self.pluginsDir, self.uiDir] if not os.path.isdir(dir)]
         tabLog = {}
@@ -186,7 +185,6 @@ class Ui_MainWindow(object):
         except ValueError:
             self.logger.log += f"\nFailed to restore window state. No file found at {stateFile}"
             open(stateFile)
-
 
     def closeEvent(self, e: QtCore.QEvent):
         self.saveWState()
@@ -255,10 +253,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.api.createShortcut(shortcut) 
 
         self.pl.load_plugins()
-
-    # def contextMenuEvent(self, event):
-    #     if self.contextMenu:
-    #         self.contextMenu.exec(self.mapToGlobal(event.pos()))
 
     def setTheme(self, theme):
         os.chdir(self.themesDir)

@@ -185,7 +185,7 @@ class TextEdit(QtWidgets.QTextEdit):
         self.layout.addWidget(self.minimapScrollArea)
 
     def contextMenu(self, pos):
-        self.mw.textContextMenu.exec(self.mapToGlobal(pos))
+        self.mw.contextMenu.exec(self.mapToGlobal(pos))
 
     def canInsertFromMimeData(self, source):
         if source.hasImage():
