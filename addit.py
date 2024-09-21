@@ -16,7 +16,6 @@ class ConsoleWidget(QtWidgets.QDockWidget):
         self.textEdit = QtWidgets.QTextEdit(parent=self.consoleWidget)
         self.textEdit.setReadOnly(True)
         self.textEdit.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.NoTextInteraction)
-        self.setStyleSheet("color: white;")
         self.textEdit.setObjectName("consoleOutput")
         self.verticalLayout.addWidget(self.textEdit)
         self.lineEdit = QtWidgets.QLineEdit(parent=self.consoleWidget)
@@ -30,7 +29,11 @@ class ConsoleWidget(QtWidgets.QDockWidget):
     def sendCommand(self):
         text = self.lineEdit.text()
         if text:
-            if text == "vtapi":
+            if text.startswith("vtapi"):
+                if len(text.split(".")) == 2:
+                    apiCommand = text.split(".")[-1] 
+                    if hasattr(self.window.api, apiCommand):
+                        self.window.logger.log += str(getattr(self.window.api, apiCommand)())
                 self.window.logger.log += str(self.window.api)
                 self.lineEdit.clear()
             else:
@@ -49,10 +52,8 @@ class MiniMap(QtWidgets.QTextEdit):
         self.setTextInteractionFlags (QtCore.Qt.TextInteractionFlag.NoTextInteraction) 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self._isDragging = False
-        self.setStyleSheet("QTextEdit#miniMap { selection-background-color: rgba(255, 255, 255, 50); selection-color: black; color: white;}")
 
     def setTextEdit(self, text_edit):
         self.textEdit = text_edit
@@ -200,7 +201,7 @@ class TextEdit(QtWidgets.QTextEdit):
 
     @property
     def _image_folder(self):
-        path = os.path.join('qt_app', 'images')
+        path = os.path.join('cache', 'images')
         if not os.path.exists(path):
             os.makedirs(path)
         return path
@@ -213,7 +214,7 @@ class TextEdit(QtWidgets.QTextEdit):
             image = source.imageData()
             img_path = os.path.join(self._image_folder, f'{uuid.uuid4()}.jpg')
             image.save(os.path.join(img_path))
-            u = QtGui.QUrl('file:///' + os.path.join(os.getcwd(), img_path))
+            u = QtCore.QUrl('file:///' + os.path.join(os.getcwd(), img_path))
             self._insert_img(u, document, cursor)
             return
         elif source.hasUrls():

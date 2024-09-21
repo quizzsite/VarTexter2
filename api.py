@@ -145,7 +145,9 @@ class VtAPI(QObject):
             menu_id = item.get('id')
             if menu_id:
                 menu = self.__menu_map.setdefault(menu_id, QtWidgets.QMenu(item.get('caption', 'Unnamed'), self.__window))
-                parent.addMenu(menu)
+                fmenu = self.findMenu(self.__menu_map, menu_id)
+                if not fmenu:
+                    parent.addMenu(menu)
                 if 'children' in item:
                     self.parseMenu(item['children'], menu, pl)
             else:
@@ -193,6 +195,7 @@ class VtAPI(QObject):
     def findMenu(self, menu, n):
         if menu:
             if menu.get("id") == n:
+                print(menu.get("id"))
                 return menu
             for c in menu.get("children", []):
                 found = self.findMenu(c, n)
@@ -298,6 +301,10 @@ class VtAPI(QObject):
             self.__window.removeAction(action)
             self.setLogMsg(f"\nRemoved shortcut '{command}'")
 
+    def updateEncoding(self):
+        e = self.getTabEncoding(self.currentTabIndex())
+        self.__window.encodingLabel.setText(e)
+
     def getCommands(self):
         return self.__commands
 
@@ -353,6 +360,17 @@ class VtAPI(QObject):
     def setTabCanSave(self, i, b: bool):
         tab = self.__window.tabWidget.widget(i)
         tab.canSave = b
+        return b
+
+    def getTabCanEdit(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        return tab.canEdit
+
+    def setTabCanEdit(self, i, b: bool):
+        tab = self.__window.tabWidget.widget(i)
+        tab.canEdit = b
+        tab.textEdit.setReadOnly(b)
+        tab.textEdit.setDisabled(b)
         return b
 
     def getTabEncoding(self, i):
@@ -421,6 +439,7 @@ class VtAPI(QObject):
         if index > -1:
             self.__window.setWindowTitle(f"{self.getTabFile(index) or 'Untitled'} - {self.__window.appName}")
             if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
+            self.updateEncoding()
         self.tabChanged.emit()
 
     def dirOpenDialog(self, e=None):

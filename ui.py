@@ -25,8 +25,10 @@ class Logger:
 class Ui_MainWindow(object):
     sys.path.insert(0, ".")
 
-    def setupUi(self, MainWindow):
+    def setupUi(self, MainWindow, argv=[]):
         self.MainWindow = MainWindow
+        self.appPath = os.path.basename(__file__)
+        self.appPath = os.path.dirname(argv[0])
 
         self.settings()
         
@@ -45,7 +47,6 @@ class Ui_MainWindow(object):
         self.horizontalLayout.setObjectName("horizontalLayout")
         
         self.treeView = QtWidgets.QTreeView(parent=self.centralwidget)
-        self.treeView.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.treeView.setMinimumWidth(150)
         self.treeView.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.NoContextMenu)
         self.treeView.setMaximumWidth(300)
@@ -65,8 +66,9 @@ class Ui_MainWindow(object):
         self.menubar.setObjectName("menuBar")
 
         self.MainWindow.setMenuBar(self.menubar)
-        
+
         self.encodingLabel = QtWidgets.QLabel("UTF-8")
+        self.encodingLabel.setObjectName("encodingLabel")
         self.statusbar = QtWidgets.QStatusBar(parent=self.MainWindow)
         self.statusbar.setObjectName("statusbar")
         self.statusbar.addPermanentWidget(self.encodingLabel)
@@ -78,10 +80,11 @@ class Ui_MainWindow(object):
 
         QtCore.QMetaObject.connectSlotsByName(self.MainWindow)
 
-    def addTab(self, name: str = "", text: str = "", i: int = -1, file=None, canSave=True, encoding="UTF-8"):
+    def addTab(self, name: str = "", text: str = "", i: int = -1, file=None, canSave=True, canEdit=True, encoding="UTF-8"):
         self.tab = QtWidgets.QWidget()
         self.tab.file = file
         self.tab.canSave = canSave
+        self.tab.canEdit = canEdit
         self.tabWidget.tabBar().setTabSaved(self.tab, True)
         self.tab.encoding = encoding
         self.tab.setObjectName("tab")
@@ -130,7 +133,7 @@ class Ui_MainWindow(object):
                 self.console = None
 
     def settings(self):
-        self.settFile = open(os.path.join(os.getcwd(), 'ui/Main.settings'), 'r+', encoding='utf-8')
+        self.settFile = open(os.path.join(self.appPath, 'ui/Main.settings'), 'r+', encoding='utf-8')
         self.settData = json.load(self.settFile)
         self.packageDirs = self.settData.get("packageDirs")
         if self.packageDirs:
@@ -144,6 +147,7 @@ class Ui_MainWindow(object):
         self.mb = StaticInfo.replacePaths(os.path.join(self.packageDirs, self.settData.get("mb")))
         self.cm = StaticInfo.replacePaths(os.path.join(self.packageDirs, self.settData.get("cm")))
         self.sc = StaticInfo.replacePaths(os.path.join(self.packageDirs, self.settData.get("sc")))
+        os.chdir(self.packageDirs)
 
     def settingsHotKeys(self):
         if os.path.isfile(self.sc):
@@ -222,24 +226,24 @@ class Ui_MainWindow(object):
             f.write(packed_data)
         self.settFile.close()
 
-    def undo(self, i):
-        tab = self.tabWidget.widget(i)
+    def undo(self, i=None):
+        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
         tab.textEdit.undo()
 
-    def redo(self, i):
-        tab = self.tabWidget.widget(i)
+    def redo(self, i=None):
+        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
         tab.textEdit.redo()
 
-    def cut(self, i):
-        tab = self.tabWidget.widget(i)
+    def cut(self, i=None):
+        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
         tab.textEdit.cut()
 
-    def copy(self, i):
-        tab = self.tabWidget.widget(i)
+    def copy(self, i=None):
+        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
         tab.textEdit.copy()
 
-    def paste(self, i):
-        tab = self.tabWidget.widget(i)
+    def paste(self, i=None):
+        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
         tab.textEdit.paste()
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -255,7 +259,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.contextMenu = QtWidgets.QMenu(self)
         self.textContextMenu = QtWidgets.QMenu(self)
         
-        self.setupUi(self)
+        self.setupUi(self, self.argvParse())
         self.windowInitialize()
 
         self.pl = PluginManager(self.pluginsDir, self)
@@ -265,25 +269,23 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.api.registerCommand("settingsHotKeys")
         self.api.registerCommand("argvParse")
 
-        self.api.executeCommand("setTheme", ["style.qss"])
+        # self.api.executeCommand("setTheme", theme="style.qss")
 
+        self.pl.load_plugins()
         if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm and os.path.isfile(self.cm):        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
         if self.sc and os.path.isfile(self.sc):
             for shortcut in json.load(open(self.sc, "r+")):
                 self.api.createShortcut(shortcut) 
 
-        self.pl.load_plugins()
-
     def setTheme(self, theme):
-        themePath = os.path.join(self.themesDir, theme[0])
+        themePath = os.path.join(self.themesDir, theme)
+
         if os.path.isfile(themePath):
             self.setStyleSheet(open(themePath, "r+").read())
-        os.chdir(os.getcwd())
     
     def argvParse(self):
-        argv = sys.argv[1:]
-        return argv
+        return sys.argv
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
