@@ -195,7 +195,6 @@ class VtAPI(QObject):
     def findMenu(self, menu, n):
         if menu:
             if menu.get("id") == n:
-                print(menu.get("id"))
                 return menu
             for c in menu.get("children", []):
                 found = self.findMenu(c, n)
@@ -214,7 +213,7 @@ class VtAPI(QObject):
             if themeMenu:
                 themeMenu["children"].clear()
                 for theme in os.listdir(self.__window.themesDir):
-                    if os.path.isfile(os.path.join(self.__window.themesDir, theme)):
+                    if os.path.isfile(os.path.join(self.__window.themesDir, theme)) and theme[-1:-3] == "qss":
                         themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
                 json.dump(menus, open(self.__window.mb, "w+"))
 

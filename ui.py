@@ -269,9 +269,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.api.registerCommand("settingsHotKeys")
         self.api.registerCommand("argvParse")
 
-        # self.api.executeCommand("setTheme", theme="style.qss")
+        self.api.executeCommand("setTheme", theme="style.qss")
 
         self.pl.load_plugins()
+
         if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm and os.path.isfile(self.cm):        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
         if self.sc and os.path.isfile(self.sc):
