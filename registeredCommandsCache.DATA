@@ -1,0 +1,19 @@
+{
+    "main": {
+        "command": {
+            "command": < function 'command' >,
+            "args": [],
+            "kwargs": {},
+            "shortcut": "ctrl+n",
+        }
+    },
+    "plugins": {
+        "command2": {
+            "command": < function 'command2' >,
+            "args": [],
+            "kwargs": {},
+            "shortcut": "ctrl+n",
+            "module": "plugins.Plugin1.plugin"
+        }
+    }
+}

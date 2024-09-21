@@ -1,0 +1,41 @@
+{
+    "menuBar": [
+        {
+            "caption": "Menu1",
+            "id": "menu1",
+            "idx": "0 static",
+            "children": [
+                {
+                    "caption": "Submenu",
+                    "id": "submenu1",
+                    "idx": "0",
+                    "children": []
+                }
+            ]
+        },
+        {
+            "caption": "-",
+            "idx": "1 static"
+        },
+        {
+            "caption": "Menu2",
+            "id": "menu2",
+            "idx": "1",
+            "children": [
+                {
+                    "caption": "Action 1",
+                    "idx": "0",
+                    "command": {
+                        "command": "command",
+                        "args": [],
+                        "kwargs": {}
+                    },
+                    "shortcut": "ctrl+n"
+                }
+            ]
+        }
+    ],
+    "textContextMenu": [],
+    "tabBarContextMenu": [],
+    "viewContextMenu": []
+}
