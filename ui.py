@@ -266,21 +266,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.pl = Pe(self.pluginsDir, self)
 
         self.api.loadThemes(self.menuBar())
-        self.api.registerCommand("setTheme")
-        self.api.registerCommand("settingsHotKeys")
-        self.api.registerCommand("argvParse")
-
-        self.api.executeCommand("setTheme", theme="style.qss")
+        self.pl.registerCommand({"command": "setTheme"})
+        self.pl.registerCommand({"command": "settingsHotKeys"})
+        self.pl.registerCommand({"command": "argvParse"})
 
         if self.mb and os.path.isfile(self.mb):        self.pl.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm and os.path.isfile(self.cm):        self.pl.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
-        if self.sc and os.path.isfile(self.sc):
-            for shortcut in json.load(open(self.sc, "r+")):
-                self.api.createShortcut(shortcut)
+        # if self.sc and os.path.isfile(self.sc):
+        #     for shortcut in json.load(open(self.sc, "r+")):
+        #         self.api.createShortcut(shortcut)
 
         self.pl.load_plugins()
 
         self.pl.registerCommands()
+
+        self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
 
     def setTheme(self, theme):
         themePath = os.path.join(self.themesDir, theme)

@@ -6,39 +6,6 @@ import json
 import importlib
 import configparser
 
-class PluginManager:
-    def __init__(self, plugin_directory: str, w):
-        self.plugin_directory = plugin_directory
-        self.__window = w
-        self.plugins = []
-    
-    def load_plugins(self): self._load_plugins()
-
-    def _load_plugins(self):
-        try:
-            sys.path.insert(0, self.plugin_directory)
-            for plugDir in os.listdir(self.plugin_directory):
-                if os.path.isdir(os.path.join(self.plugin_directory, plugDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini"):
-                    plugInfo = self.__window.api.load_ini_file(f"{os.path.join(self.plugin_directory, plugDir)}\config.ini")
-                    plugin = self.__window.api.initAPI(plugInfo)
-                    # if int(self.__window.api.__version__) == int(self.__window.appVersion):
-                    self.plugins.append(plugInfo)
-                    self.__window.api.setLogMsg(f"\nFound new plugin with info {plugInfo}")
-                    self.__window.api.regAll(plugin)
-        finally:
-            sys.path.pop(0)
-            self.__window.api.commandsLoaded.emit()
-
-    def load_plugin(self, pluginDir):
-        sys.path.insert(0, pluginDir)
-        if os.path.isdir(os.path.join(self.plugin_directory, pluginDir)) and os.path.isfile(f"{os.path.join(self.plugin_directory, pluginDir)}\config.ini"):
-            plugInfo = self.__window.api.load_ini_file(rf"{os.path.join(self.plugin_directory, pluginDir)}\config.ini")
-            self.plugins.append(plugInfo)
-            self.setLogMsg(f"\nFound new plugin with info {plugInfo}")
-            self.__window.api.regAll()
-            self.__window.api.initAPI(plugInfo)
-            sys.path.pop(0)
-
 class VtAPI(QObject):
 
     # windowStarted = pyqtSignal()
@@ -79,47 +46,6 @@ class VtAPI(QObject):
 
     def onActivated(self):        self.treeWidgetActivated.emit()
 
-    def load_ini_file(self, ini_path):
-        plugin = ini_path
-        config = configparser.ConfigParser()
-        config.read(plugin)
-
-        self.name = config.get('DEFAULT', 'name', fallback='Unknown Plugin')
-
-        self.version = config.get('DEFAULT', 'version', fallback='1.0')
-
-        self.main_script = config.get('DEFAULT', 'main', fallback='')
-
-        self.plugInfo = {"name": self.name, "version": self.version, "path": ini_path, "main": self.main_script}
-
-        self.cm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'cm', fallback=''))) if config.get('DEFAULT', 'cm', fallback='') else ""
-
-        self.tcm = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'tcm', fallback=''))) if config.get('DEFAULT', 'tcm', fallback='') else ""
-    
-        self.mb = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'mb', fallback=''))) if config.get('DEFAULT', 'mb', fallback='') else ""
-    
-        self.sc = str(os.path.join(os.path.dirname(ini_path), config.get('DEFAULT', 'sc', fallback=''))) if config.get('DEFAULT', 'sc', fallback='') else ""
-    
-        return self.plugInfo
-
-    def regAll(self, plugin):
-        if self.mb:
-            self.parseMenu(json.load(open(self.mb, "r+")), self.__window.menuBar(), pl=plugin)
-            self.plugInfo["mb"] = self.mb
-
-        if self.cm:
-            self.parseMenu(json.load(open(self.cm, "r+")), self.__window.contextMenu, pl=plugin)
-            self.plugInfo["cm"] = self.cm
-
-        if self.tcm:
-            self.parseMenu(json.load(open(self.tcm, "r+")), self.__window.textContextMenu, pl=plugin)
-            self.plugInfo["tcm"] = self.tcm
-
-        if self.sc:
-            for shortcut in json.load(open(self.sc, "r+")):
-                self.createShortcut(shortcut, pl=plugin)            
-            self.plugInfo["sc"] = self.sc
-
     def createShortcut(self, shortcut_info, pl=None):
         keys = shortcut_info.get("keys", [])
         command = shortcut_info.get("command")
@@ -136,47 +62,6 @@ class VtAPI(QObject):
         self.registerCommand(command, pl=pl)
         action.triggered.connect(lambda: self.executeCommand(command))
         self.__window.addAction(action)
-
-    def parseMenu(self, data, parent, pl=None):
-        if isinstance(data, dict):
-            data = [data]
-
-        for item in data:
-            menu_id = item.get('id')
-            if menu_id:
-                menu = self.__menu_map.setdefault(menu_id, QtWidgets.QMenu(item.get('caption', 'Unnamed'), self.__window))
-                menu.setObjectName(menu_id)
-                fmenu = self.findMenu(self.__menu_map, menu_id)
-                if not fmenu:
-                    parent.addMenu(menu)
-                if 'children' in item:
-                    self.parseMenu(item['children'], menu, pl)
-            else:
-                if 'children' in item:
-                    submenu = QtWidgets.QMenu(item.get('caption', 'Unnamed'), self.__window)
-                    self.parseMenu(item['children'], submenu)
-                    parent.addMenu(submenu)
-                else:
-                    if item.get('caption') == "-":
-                        parent.addSeparator()
-                    else:
-                        action = QtGui.QAction(item.get('caption', 'Unnamed'), self.__window)
-                        if 'command' in item:
-                            self.registerCommand(item['command'], pl)
-                            args = item.get("args")
-                            kwargs = item.get("kwargs")
-                            action.triggered.connect(lambda checked, cmd=item['command'], args=args or [], kwargs=kwargs or {}: 
-                                self.executeCommand(
-                                    cmd, 
-                                    *args, 
-                                    **({**kwargs, 'checked': checked} if action.isCheckable() else kwargs)
-                                )
-                            )
-                            parent.addAction(action)
-                        if 'shortcut' in item:
-                            action.setShortcut(QtGui.QKeySequence(item['shortcut']))
-                        if 'checkable' in item:
-                            action.setCheckable(item['checkable'])
 
     def findAction(self, parent_menu, caption=None, command=None):
         for action in parent_menu.actions():
@@ -230,64 +115,6 @@ class VtAPI(QObject):
                     if os.path.isfile(os.path.join(self.__window.themesDir, theme)) and theme[-1:-3] == "qss":
                         themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
                 json.dump(menus, open(self.__window.mb, "w+"))
-
-    def executeCommand(self, command, *args, **kwargs):
-        c = self.__commands.get(command)
-        if c:
-            try:
-                out = c.get("command")(*args, **kwargs)
-                self.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
-                if out:
-                    self.setLogMsg(f"\nCommand '{command}' returned '{out}'")
-            except Exception as e:
-                print(e)
-                self.setLogMsg(f"\nFound error in '{command}' - '{e}'.\nInfo: {c}")
-        else:
-            self.setLogMsg(f"\nCommand '{command}' not found")
-
-    def initAPI(self, plugin):
-        sys.path.insert(0, os.path.dirname(plugin.get("path")))
-        main_module = plugin.get("main")
-        if main_module.endswith('.py'):
-            main_module = main_module[:-3]
-            try:
-                plug = self.importModule(
-                str(os.path.join(os.path.dirname(plugin.get("path")), plugin.get("main"))),
-                plugin.get("name") + "Plugin"
-                )
-                if hasattr(plug, "initAPI"):
-                    plug.initAPI(self)
-                return plug
-            except Exception as e:
-                self.setLogMsg(f"\nFailed to import module '{plugin.get('path')}': '{e}'")
-
-    def importModule(self, path, n):
-        spec = importlib.util.spec_from_file_location(n, path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[n] = module
-        spec.loader.exec_module(module)
-        return module
-
-    def registerCommand(self, command, pl=None):
-        commandN = command.split()[0]
-        if pl:
-            try:
-                command_func = getattr(pl, commandN)
-                self.command = {}
-                self.command["command"] = command_func
-                self.command["plugin"] = pl
-                self.__commands[commandN] = self.command
-            except (ImportError, AttributeError) as e:
-                self.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
-        else:
-            self.command = {}
-            command_func = getattr(self.__window, commandN, None)
-            if command_func:
-                self.command["command"] = command_func
-                self.command["plugin"] = None
-                self.__commands[commandN] = self.command
-            else:
-                self.setLogMsg(f"\nCommand '{commandN}' not found")
 
     def removeCommand(self, command_name):
         if command_name in self.__commands:
