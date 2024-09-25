@@ -5,6 +5,7 @@ import msgpack
 
 from addit import *
 from api import *
+from api2 import PluginManager as Pe
 
 class Logger:
     def __init__(self, w):
@@ -262,22 +263,24 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.setupUi(self, self.argvParse())
         self.windowInitialize()
 
-        self.pl = PluginManager(self.pluginsDir, self)
+        self.pl = Pe(self.pluginsDir, self)
 
-        self.api.loadThemes()
+        self.api.loadThemes(self.menuBar())
         self.api.registerCommand("setTheme")
         self.api.registerCommand("settingsHotKeys")
         self.api.registerCommand("argvParse")
 
         self.api.executeCommand("setTheme", theme="style.qss")
 
-        self.pl.load_plugins()
-
-        if self.mb and os.path.isfile(self.mb):        self.api.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
-        if self.cm and os.path.isfile(self.cm):        self.api.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
+        if self.mb and os.path.isfile(self.mb):        self.pl.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
+        if self.cm and os.path.isfile(self.cm):        self.pl.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
         if self.sc and os.path.isfile(self.sc):
             for shortcut in json.load(open(self.sc, "r+")):
-                self.api.createShortcut(shortcut) 
+                self.api.createShortcut(shortcut)
+
+        self.pl.load_plugins()
+
+        self.pl.registerCommands()
 
     def setTheme(self, theme):
         themePath = os.path.join(self.themesDir, theme)

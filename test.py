@@ -1,4 +1,11 @@
-import re
-s = 'c(qwdqw, dqwko())'
-result = re.search('()', s)
-print(result.group(1))
+class Text:
+    def get(self):
+        print("dweofjep")    
+
+class API:
+    def __init__(self) -> None:
+        self.Text = Text()
+
+
+a = API()
+a.Text.get()

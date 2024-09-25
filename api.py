@@ -145,6 +145,7 @@ class VtAPI(QObject):
             menu_id = item.get('id')
             if menu_id:
                 menu = self.__menu_map.setdefault(menu_id, QtWidgets.QMenu(item.get('caption', 'Unnamed'), self.__window))
+                menu.setObjectName(menu_id)
                 fmenu = self.findMenu(self.__menu_map, menu_id)
                 if not fmenu:
                     parent.addMenu(menu)
@@ -192,24 +193,37 @@ class VtAPI(QObject):
 
         return None
 
-    def findMenu(self, menu, n):
-        if menu:
-            if menu.get("id") == n:
-                return menu
-            for c in menu.get("children", []):
-                found = self.findMenu(c, n)
-                if found:
-                    return found
+    def findMenu(self, menubar, menu_id):
+        for action in menubar.actions():
+            menu = action.menu()
+            if menu:
+                if menu.objectName() == menu_id:
+                    return menu
+                found_menu = self.findMenuInQMenu(menu, menu_id)
+                if found_menu:
+                    return found_menu
         return None
 
-    def loadThemes(self):
+    def findMenuInQMenu(self, menu, menu_id):
+        for action in menu.actions():
+            submenu = action.menu()
+            if submenu:
+                if submenu.objectName() == menu_id:
+                    return submenu
+                found_menu = self.findMenuInQMenu(submenu, menu_id)
+                if found_menu:
+                    return found_menu
+        return None
+
+
+    def loadThemes(self, menu):
         if os.path.isdir(self.__window.themesDir) and os.path.isfile(self.__window.mb):
             with open(self.__window.mb, "r+") as file:
-                menus = json.load(file)
-                file.close()
-            themeMenu = None
-            for menu in menus:
-                themeMenu = self.findMenu(menu, "themes")
+                try:
+                    menus = json.load(file)
+                except Exception as e:
+                    self.setLogMsg(f"Error when loading '{self.__window.mb}': {e}")
+            themeMenu = self.findMenu(menu, "themes")
             if themeMenu:
                 themeMenu["children"].clear()
                 for theme in os.listdir(self.__window.themesDir):
@@ -308,7 +322,7 @@ class VtAPI(QObject):
         return self.__commands
 
     def getCommand(self, name):
-        return self.__commands.get(name)
+        return self.__window.pl.regCommands.get(name)
 
     def textChangeEvent(self, i):
         tab = self.__window.tabWidget.widget(i)
@@ -436,9 +450,11 @@ class VtAPI(QObject):
 
     def tabChngd(self, index):
         if index > -1:
-            self.__window.setWindowTitle(f"{self.getTabFile(index) or 'Untitled'} - {self.__window.appName}")
+            self.__window.setWindowTitle(f"{os.path.normpath(self.getTabFile(index) or 'Untitled')} - {self.__window.appName}")
             if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
             self.updateEncoding()
+        else:
+            self.__window.setWindowTitle(self.__window.appName)
         self.tabChanged.emit()
 
     def dirOpenDialog(self, e=None):
