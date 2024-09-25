@@ -4,8 +4,8 @@ from datetime import datetime
 import msgpack
 
 from addit import *
-from api import *
-from api2 import PluginManager as Pe
+# from api import *
+from api2 import PluginManager, VtAPI
 
 class Logger:
     def __init__(self, w):
@@ -77,7 +77,7 @@ class Ui_MainWindow(object):
 
         self.api = VtAPI(self.MainWindow)
 
-        self.tabWidget.currentChanged.connect(self.api.tabChngd)
+        self.tabWidget.currentChanged.connect(self.api.SigSlots.tabChngd)
 
         QtCore.QMetaObject.connectSlotsByName(self.MainWindow)
 
@@ -109,14 +109,14 @@ class Ui_MainWindow(object):
 
         self.tabWidget.addTab(self.tab, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
-        self.api.setTab(-1)
+        self.api.Tab.setTab(-1)
 
         self.tab.textEdit.textChanged.connect(self.api.textChngd)
         self.tab.textEdit.document().contentsChanged.connect(self.api.textChngd)
 
     def closeTab(self, i: int = None):
         if not i:
-            i = self.api.currentTabIndex()
+            i = self.api.Tab.currentTabIndex()
         self.tabWidget.closeTab(i)
 
     def logConsole(self, checked=None):
@@ -182,9 +182,9 @@ class Ui_MainWindow(object):
                     for tab in tabLog.get("tabs") or []:
                         tab = tabLog.get("tabs").get(tab)
                         self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
-                        self.api.textChangeEvent(self.api.currentTabIndex())
-                        self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.currentTabIndex())} - VarTexter2")
-                        self.api.setTextSelection(self.api.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
+                        self.api.textChangeEvent(self.api.Tab.currentTabIndex())
+                        self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.Tab.currentTabIndex())} - VarTexter2")
+                        self.api.Text.setTextSelection(self.api.Tab.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
                     if tabLog.get("activeTab"):
                         self.tabWidget.setCurrentIndex(int(tabLog.get("activeTab")))
         except ValueError:
@@ -193,27 +193,27 @@ class Ui_MainWindow(object):
 
     def closeEvent(self, e: QtCore.QEvent):
         self.saveWState()
-        self.api.windowClosed.emit()
+        self.api.SigSlots.windowClosed.emit()
 
         e.accept()
 
     def saveWState(self):
         tabsInfo = {}
         tabs = tabsInfo["tabs"] = {}
-        i = self.api.currentTabIndex()
+        i = self.api.Tab.currentTabIndex()
         tabsInfo["activeTab"] = str(i)
         stateFile = os.path.join(self.packageDirs, 'data.msgpack')
         for idx in range(self.tabWidget.count()):
             widget = self.tabWidget.widget(idx)
             if widget and isinstance(widget, QtWidgets.QWidget):
-                cursor = self.api.getTextCursor(i)
+                cursor = self.api.Text.getTextCursor(i)
                 start = cursor.selectionStart()
                 end = cursor.selectionEnd()
                 tabs[str(idx)] = {
-                    "name": self.api.getTabTitle(idx),
-                    "file": self.api.getTabFile(idx),
-                    "canSave": self.api.getTabCanSave(idx),
-                    "text": self.api.getTabText(idx),
+                    "name": self.api.Tab.getTabTitle(idx),
+                    "file": self.api.Tab.getTabFile(idx),
+                    "canSave": self.api.Tab.getTabCanSave(idx),
+                    "text": self.api.Tab.getTabText(idx),
                     "selection": [start, end],
                     "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
@@ -228,23 +228,23 @@ class Ui_MainWindow(object):
         self.settFile.close()
 
     def undo(self, i=None):
-        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
+        tab = self.tabWidget.widget(i or self.api.Tab.currentTabIndex())
         tab.textEdit.undo()
 
     def redo(self, i=None):
-        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
+        tab = self.tabWidget.widget(i or self.api.Tab.currentTabIndex())
         tab.textEdit.redo()
 
     def cut(self, i=None):
-        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
+        tab = self.tabWidget.widget(i or self.api.Tab.currentTabIndex())
         tab.textEdit.cut()
 
     def copy(self, i=None):
-        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
+        tab = self.tabWidget.widget(i or self.api.Tab.currentTabIndex())
         tab.textEdit.copy()
 
     def paste(self, i=None):
-        tab = self.tabWidget.widget(i or self.api.currentTabIndex())
+        tab = self.tabWidget.widget(i or self.api.Tab.currentTabIndex())
         tab.textEdit.paste()
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -263,7 +263,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.setupUi(self, self.argvParse())
         self.windowInitialize()
 
-        self.pl = Pe(self.pluginsDir, self)
+        self.pl = PluginManager(self.pluginsDir, self)
 
         self.api.loadThemes(self.menuBar())
         self.pl.registerCommand({"command": "setTheme"})

@@ -325,17 +325,17 @@ class TabWidget (QtWidgets.QTabWidget):
                 self.MainWindow.api.execute_command(f"saveFile {tab.file}")
                 tab.deleteLater()
                 self.removeTab(currentIndex)
-                self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
+                self.MainWindow.api.SigSlots.tabClosed.emit(currentIndex, tab.file)
             elif result == QtWidgets.QMessageBox.StandardButton.No:
                 tab.deleteLater()
                 self.removeTab(currentIndex)
-                self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
+                self.MainWindow.api.SigSlots.tabClosed.emit(currentIndex, tab.file)
             elif result == QtWidgets.QMessageBox.StandardButton.Cancel:
                 pass
         else:
             tab.deleteLater()
             self.removeTab(currentIndex)
-            self.MainWindow.api.tabClosed.emit(currentIndex, tab.file)
+            self.MainWindow.api.SigSlots.tabClosed.emit(currentIndex, tab.file)
 
 class StaticInfo:
     @staticmethod

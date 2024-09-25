@@ -34,14 +34,14 @@ class PluginManager:
                             module = importModule(pyFile, info.get("name") + "Plugin")
                             if hasattr(module, "initAPI"):
                                 module.initAPI(self.__window.api)
-                        except Exception as e: self.__window.api.setLogMsg(f"Failed load plugin '{info.get('name')}' commands: {e}")
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load plugin '{info.get('name')}' commands: {e}")
                         finally: sys.path.pop(0)
                     if info.get("menu"):
                         try:
                             menuFile = json.load(open(info.get("menu"), "r+"))
                             for menu in menuFile:
                                 self.parseMenu(menuFile.get(menu), self.__window.menuBar(), pl=module)
-                        except Exception as e: self.__window.api.setLogMsg(f"Failed load menu for '{menu}' from '{info.get('menu')}': {e}")
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load menu for '{menu}' from '{info.get('menu')}': {e}")
         finally:
             os.chdir(self.dPath)
             del self.dPath
@@ -67,7 +67,7 @@ class PluginManager:
                 continue
             menu_id = item.get('id')
             if menu_id:
-                fmenu = self.__window.api.findMenu(parent, menu_id)
+                fmenu = self.findMenu(parent, menu_id)
                 if fmenu:
                     if 'children' in item:
                         self.parseMenu(item['children'], fmenu, pl)
@@ -96,20 +96,19 @@ class PluginManager:
 
     def executeCommand(self, c, *args, **kwargs):
         command = c
-        print(command)
         c = self.regCommands.get(command.get("command"))
         if c:
             try:
                 args = command.get("args") or args
                 kwargs = command.get("kwargs") or kwargs
                 out = c.get("command")(*args or [], **kwargs or {})
-                self.__window.api.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
+                self.__window.api.App.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
                 if out:
-                    self.__window.api.setLogMsg(f"\nCommand '{command}' returned '{out}'")
+                    self.__window.api.App.setLogMsg(f"\nCommand '{command}' returned '{out}'")
             except Exception as e:
-                self.__window.api.setLogMsg(f"\nFound error in '{command}' - '{e}'.\nInfo: {c}")
+                self.__window.api.App.setLogMsg(f"\nFound error in '{command}' - '{e}'.\nInfo: {c}")
         else:
-            self.__window.api.setLogMsg(f"\nCommand '{command}' not found")
+            self.__window.api.App.setLogMsg(f"\nCommand '{command}' not found")
     def registerCommand(self, item, pl=None):
         if item.get('command', ""):
             self.commands.append({"command": item.get('command', ""), "plugin": pl, "args": item.get('args', []), "kwargs": item.get("kwargs", {})})
@@ -120,7 +119,6 @@ class PluginManager:
                 commandN = command
             else:
                 commandN = command.get("command")
-            print(commandN)
             pl = commandInfo.get("plugin")
             
             args = commandInfo.get("args", [])
@@ -136,7 +134,7 @@ class PluginManager:
                         "plugin": pl
                     }
                 except (ImportError, AttributeError, TypeError) as e:
-                    self.__window.api.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
+                    self.__window.api.App.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
             else:
                 command_func = getattr(self.__window, commandN, None)
                 if command_func:
@@ -147,9 +145,46 @@ class PluginManager:
                         "plugin": None
                     }
                 else:
-                    self.__window.api.setLogMsg(f"\nCommand '{commandN}' not found")
+                    self.__window.api.App.setLogMsg(f"\nCommand '{commandN}' not found")
         del self.commands
-            
+
+    def findAction(self, parent_menu, caption=None, command=None):
+        for action in parent_menu.actions():
+            if caption and action.text() == caption:
+                return action
+            if command and hasattr(action, 'command') and action.command == command:
+                return action
+
+        for action in parent_menu.actions():
+            if action.menu():
+                found_action = self.findAction(action.menu(), caption, command)
+                if found_action:
+                    return found_action
+
+        return None
+
+    def findMenu(self, menubar, menu_id):
+        for action in menubar.actions():
+            menu = action.menu()
+            if menu:
+                if menu.objectName() == menu_id:
+                    return menu
+                found_menu = self.findMenu2(menu, menu_id)
+                if found_menu:
+                    return found_menu
+        return None
+
+    def findMenu2(self, menu, menu_id):
+        for action in menu.actions():
+            submenu = action.menu()
+            if submenu:
+                if submenu.objectName() == menu_id:
+                    return submenu
+                found_menu = self.findMenu2(submenu, menu_id)
+                if found_menu:
+                    return found_menu
+        return None
+
 class Tab:
     def __init__(self, w):
         self.__window = w
@@ -293,3 +328,97 @@ class App:
 class FSys:
     def __init__(self, w):
         self.__window = w
+
+class SigSlots(QtCore.QObject):
+
+    commandsLoaded = QtCore.pyqtSignal()
+    tabClosed = QtCore.pyqtSignal(int, str)
+    tabChanged = QtCore.pyqtSignal()
+    textChanged = QtCore.pyqtSignal()
+    windowClosed = QtCore.pyqtSignal()
+
+    treeWidgetClicked = QtCore.pyqtSignal(QtCore.QModelIndex)
+    treeWidgetDoubleClicked = QtCore.pyqtSignal(QtGui.QFileSystemModel, QtCore.QModelIndex)
+    treeWidgetActivated = QtCore.pyqtSignal()
+
+    def __init__(self, w):
+        super().__init__(w)
+        self.__window = w
+
+    def textChngd(self):
+        tab = self.__window.tabWidget.currentWidget()
+        if tab:
+            self.__window.tabWidget.tabBar().setTabSaved(tab, False)
+
+    def tabChngd(self, index):
+        if index > -1:
+            self.__window.setWindowTitle(f"{os.path.normpath(self.getTabFile(index) or 'Untitled')} - {self.__window.appName}")
+            if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
+            self.updateEncoding()
+        else:
+            self.__window.setWindowTitle(self.__window.appName)
+        self.tabChanged.emit()
+
+class VtAPI:
+    def __init__(self, parent):
+        self.__window = parent
+        self.__version__ = self.__window.__version__
+        self.Tab = Tab(self.__window)
+        self.Text = Text(self.__window)
+        self.SigSlots = SigSlots(self.__window)
+        self.App = App(self.__window)
+
+    def __str__(self):
+        return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""
+
+    def onDoubleClicked(self, index):        self.treeWidgetDoubleClicked.emit(self.__window.treeView.model(), index)
+
+    def onClicked(self, index):        self.treeWidgetClicked.emit(index)
+
+    def onActivated(self):        self.treeWidgetActivated.emit()
+
+    def loadThemes(self, menu):
+        if os.path.isdir(self.__window.themesDir) and os.path.isfile(self.__window.mb):
+            with open(self.__window.mb, "r+") as file:
+                try:
+                    menus = json.load(file)
+                except Exception as e:
+                    self.setLogMsg(f"Error when loading '{self.__window.mb}': {e}")
+            themeMenu = self.__window.pl.findMenu(menu, "themes")
+            if themeMenu:
+                themeMenu["children"].clear()
+                for theme in os.listdir(self.__window.themesDir):
+                    if os.path.isfile(os.path.join(self.__window.themesDir, theme)) and theme[-1:-3] == "qss":
+                        themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
+                json.dump(menus, open(self.__window.mb, "w+"))
+
+    def updateEncoding(self):
+        e = self.getTabEncoding(self.currentTabIndex())
+        self.__window.encodingLabel.setText(e)
+
+    def getCommands(self):
+        return self.__commands
+
+    def getCommand(self, name):
+        return self.__window.pl.regCommands.get(name)
+
+    def textChangeEvent(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        tab.textEdit.textChanged.connect(self.textChngd)
+        tab.textEdit.document().contentsChanged.connect(self.textChngd)
+
+    def addCustomTab(self, tab: QtWidgets.QWidget, title):
+        self.__window.tabWidget.addTab(tab, title)
+
+    def textChngd(self):
+        tab = self.__window.tabWidget.currentWidget()
+        if tab:
+            self.__window.tabWidget.tabBar().setTabSaved(tab, False)
+
+    def setTheme(self, theme):
+        themePath = os.path.join(self.__window.themesDir, theme)
+        if os.path.isfile(themePath):
+            self.__window.setStyleSheet(open(themePath, "r+").read())
+    
+    def isFile(self, path):
+        return os.path.isfile(path)

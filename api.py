@@ -84,18 +84,18 @@ class VtAPI(QObject):
             if menu:
                 if menu.objectName() == menu_id:
                     return menu
-                found_menu = self.findMenuInQMenu(menu, menu_id)
+                found_menu = self.findMenu2(menu, menu_id)
                 if found_menu:
                     return found_menu
         return None
 
-    def findMenuInQMenu(self, menu, menu_id):
+    def findMenu2(self, menu, menu_id):
         for action in menu.actions():
             submenu = action.menu()
             if submenu:
                 if submenu.objectName() == menu_id:
                     return submenu
-                found_menu = self.findMenuInQMenu(submenu, menu_id)
+                found_menu = self.findMenu2(submenu, menu_id)
                 if found_menu:
                     return found_menu
         return None
