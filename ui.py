@@ -111,8 +111,8 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), name or "Untitled")
         self.api.Tab.setTab(-1)
 
-        self.tab.textEdit.textChanged.connect(self.api.textChngd)
-        self.tab.textEdit.document().contentsChanged.connect(self.api.textChngd)
+        self.tab.textEdit.textChanged.connect(self.api.SigSlots.textChngd)
+        self.tab.textEdit.document().contentsChanged.connect(self.api.SigSlots.textChngd)
 
     def closeTab(self, i: int = None):
         if not i:
@@ -182,7 +182,7 @@ class Ui_MainWindow(object):
                     for tab in tabLog.get("tabs") or []:
                         tab = tabLog.get("tabs").get(tab)
                         self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
-                        self.api.textChangeEvent(self.api.Tab.currentTabIndex())
+                        self.api.SigSlots.textChangeEvent(self.api.Tab.currentTabIndex())
                         self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.Tab.currentTabIndex())} - VarTexter2")
                         self.api.Text.setTextSelection(self.api.Tab.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
                     if tabLog.get("activeTab"):

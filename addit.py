@@ -37,7 +37,7 @@ class ConsoleWidget(QtWidgets.QDockWidget):
                 self.window.logger.log += str(self.window.api)
                 self.lineEdit.clear()
             else:
-                self.window.api.executeCommand(self.lineEdit.text())
+                self.window.pl.executeCommand({"command": self.lineEdit.text()})
                 self.lineEdit.clear()
     def closeEvent(self, e):
         self.window.console = None

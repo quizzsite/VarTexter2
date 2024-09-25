@@ -280,11 +280,9 @@ class Text:
         cursor.setPosition(e, QtGui.QTextCursor.MoveMode.KeepAnchor)
         tab.textEdit.setTextCursor(cursor)
 
-
 class Commands:
     def __init__(self, w):
         self.__window = w
-
 
 class App:
     def __init__(self, w):
@@ -325,9 +323,17 @@ class App:
         self.__window.treeView.setRootIndex(self.model.index(dir))
         return self.model
 
+    def setTheme(self, theme):
+        themePath = os.path.join(self.__window.themesDir, theme)
+        if os.path.isfile(themePath):
+            self.__window.setStyleSheet(open(themePath, "r+").read())
+
 class FSys:
     def __init__(self, w):
         self.__window = w
+
+    def isFile(self, path):
+        return os.path.isfile(path)
 
 class SigSlots(QtCore.QObject):
 
@@ -352,12 +358,32 @@ class SigSlots(QtCore.QObject):
 
     def tabChngd(self, index):
         if index > -1:
-            self.__window.setWindowTitle(f"{os.path.normpath(self.getTabFile(index) or 'Untitled')} - {self.__window.appName}")
+            self.__window.setWindowTitle(f"{os.path.normpath(self.__window.api.Tab.getTabFile(index) or 'Untitled')} - {self.__window.appName}")
             if index >= 0: self.__window.encodingLabel.setText(self.__window.tabWidget.widget(index).encoding)
             self.updateEncoding()
         else:
             self.__window.setWindowTitle(self.__window.appName)
         self.tabChanged.emit()
+
+    def updateEncoding(self):
+        e = self.__window.api.Tab.getTabEncoding(self.__window.api.Tab.currentTabIndex())
+        self.__window.encodingLabel.setText(e)
+
+    def onDoubleClicked(self, index):        self.treeWidgetDoubleClicked.emit(self.__window.treeView.model(), index)
+
+    def onClicked(self, index):        self.treeWidgetClicked.emit(index)
+
+    def onActivated(self):        self.treeWidgetActivated.emit()
+
+    def textChngd(self):
+        tab = self.__window.tabWidget.currentWidget()
+        if tab:
+            self.__window.tabWidget.tabBar().setTabSaved(tab, False)
+
+    def textChangeEvent(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        tab.textEdit.textChanged.connect(self.textChngd)
+        tab.textEdit.document().contentsChanged.connect(self.textChngd)
 
 class VtAPI:
     def __init__(self, parent):
@@ -370,12 +396,6 @@ class VtAPI:
 
     def __str__(self):
         return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""
-
-    def onDoubleClicked(self, index):        self.treeWidgetDoubleClicked.emit(self.__window.treeView.model(), index)
-
-    def onClicked(self, index):        self.treeWidgetClicked.emit(index)
-
-    def onActivated(self):        self.treeWidgetActivated.emit()
 
     def loadThemes(self, menu):
         if os.path.isdir(self.__window.themesDir) and os.path.isfile(self.__window.mb):
@@ -392,33 +412,5 @@ class VtAPI:
                         themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
                 json.dump(menus, open(self.__window.mb, "w+"))
 
-    def updateEncoding(self):
-        e = self.getTabEncoding(self.currentTabIndex())
-        self.__window.encodingLabel.setText(e)
-
-    def getCommands(self):
-        return self.__commands
-
     def getCommand(self, name):
         return self.__window.pl.regCommands.get(name)
-
-    def textChangeEvent(self, i):
-        tab = self.__window.tabWidget.widget(i)
-        tab.textEdit.textChanged.connect(self.textChngd)
-        tab.textEdit.document().contentsChanged.connect(self.textChngd)
-
-    def addCustomTab(self, tab: QtWidgets.QWidget, title):
-        self.__window.tabWidget.addTab(tab, title)
-
-    def textChngd(self):
-        tab = self.__window.tabWidget.currentWidget()
-        if tab:
-            self.__window.tabWidget.tabBar().setTabSaved(tab, False)
-
-    def setTheme(self, theme):
-        themePath = os.path.join(self.__window.themesDir, theme)
-        if os.path.isfile(themePath):
-            self.__window.setStyleSheet(open(themePath, "r+").read())
-    
-    def isFile(self, path):
-        return os.path.isfile(path)
