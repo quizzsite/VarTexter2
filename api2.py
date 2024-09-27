@@ -1,5 +1,6 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 import os, sys, configparser, json, importlib
+import PyQt6
 
 def importModule(path, n):
     spec = importlib.util.spec_from_file_location(n, path)
@@ -14,6 +15,7 @@ class PluginManager:
         self.__window = w
         self.__menu_map = {}
         self.commands = []
+        self.shortcuts = []
         self.regCommands = {}
         self.dPath = None
     
@@ -79,20 +81,36 @@ class PluginManager:
                         self.parseMenu(item['children'], menu, pl)
             else:
                 action = QtGui.QAction(item.get('caption', 'Unnamed'), self.__window)
-                if 'command' in item:
-                    args = item.get("args")
-                    kwargs = item.get("kwargs")
-                    self.commands.append({"command": item['command'], "plugin": pl, "args": args, "kwargs": kwargs})
-                    action.triggered.connect(lambda checked, cmd=item['command']: 
-                        self.executeCommand(
-                            cmd
-                        )
-                    )
-                parent.addAction(action)
+                self.actionCheckable = False
                 if 'shortcut' in item:
-                    action.setShortcut(QtGui.QKeySequence(item['shortcut']))
-                if 'checkable' in item:
-                    action.setCheckable(item['checkable'])
+                    if not item['shortcut'] in self.shortcuts:                    
+                        action.setShortcut(QtGui.QKeySequence(item['shortcut']))
+                        self.shortcuts.append(item['shortcut'])
+                    else:
+                        self.__window.api.App.setLogMsg(f"Shortcut '{item['shortcut']}' for function '{item['command']}' is already used.")
+
+
+
+                if 'command' in item:
+                    args = item.get('command').get("args")
+                    kwargs = item.get('command').get("kwargs")
+                    self.commands.append({"command": item['command'], "plugin": pl, "args": args, "kwargs": kwargs})
+                    if 'checkable' in item:
+                        self.actionCheckable = True
+                        action.setCheckable(item['checkable'])
+                        action.triggered.connect(lambda checked, cmd=item['command']: 
+                            self.executeCommand(
+                                cmd,
+                                {"checked": False}
+                            )
+                        )
+                    else:
+                        action.triggered.connect(lambda checked, cmd=item['command']: 
+                            self.executeCommand(
+                                cmd
+                            )
+                        )
+                parent.addAction(action)
 
     def executeCommand(self, c, *args, **kwargs):
         command = c
@@ -101,6 +119,9 @@ class PluginManager:
             try:
                 args = command.get("args") or args
                 kwargs = command.get("kwargs") or kwargs
+                checkable = command.get("checkable")
+
+                kwargs = kwargs if not checkable else {**kwargs, "checked": kwargs.get("checked") if kwargs.get("checked") else False}
                 out = c.get("command")(*args or [], **kwargs or {})
                 self.__window.api.App.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
                 if out:
@@ -123,6 +144,7 @@ class PluginManager:
             
             args = commandInfo.get("args", [])
             kwargs = commandInfo.get("kwargs", {})
+            checkable = commandInfo.get("checkable", False)
 
             if pl:
                 try:
@@ -131,7 +153,7 @@ class PluginManager:
                         "command": command_func,
                         "args": args,
                         "kwargs": kwargs,
-                        "plugin": pl
+                        "plugin": pl,
                     }
                 except (ImportError, AttributeError, TypeError) as e:
                     self.__window.api.App.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
@@ -142,7 +164,7 @@ class PluginManager:
                         "command": command_func,
                         "args": args,
                         "kwargs": kwargs,
-                        "plugin": None
+                        "plugin": None,
                     }
                 else:
                     self.__window.api.App.setLogMsg(f"\nCommand '{commandN}' not found")
@@ -332,8 +354,16 @@ class FSys:
     def __init__(self, w):
         self.__window = w
 
-    def isFile(self, path):
-        return os.path.isfile(path)
+    def osModule(self):
+        return os
+    def sysModule(self):
+        return sys
+    def jsonModule(self):
+        return json
+    def importlibModule(self):
+        return importlib
+    def PyQt6Module(self):
+        return PyQt6
 
 class SigSlots(QtCore.QObject):
 
@@ -414,3 +444,7 @@ class VtAPI:
 
     def getCommand(self, name):
         return self.__window.pl.regCommands.get(name)
+
+f = FSys("")
+a = f.PyQt6Module().QtWidgets
+print(a)

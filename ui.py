@@ -4,7 +4,6 @@ from datetime import datetime
 import msgpack
 
 from addit import *
-# from api import *
 from api2 import PluginManager, VtAPI
 
 class Logger:
@@ -120,6 +119,7 @@ class Ui_MainWindow(object):
         self.tabWidget.closeTab(i)
 
     def logConsole(self, checked=None):
+        print(checked)
         if checked:
             self.console = ConsoleWidget(self.MainWindow)
             self.console.textEdit.append(self.logger.log)
