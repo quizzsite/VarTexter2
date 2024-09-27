@@ -99,9 +99,10 @@ class PluginManager:
                         self.actionCheckable = True
                         action.setCheckable(item['checkable'])
                         action.triggered.connect(lambda checked, cmd=item['command']: 
-                            self.executeCommand(
-                                cmd,
-                                {"checked": False}
+                            self.__checkedAction(
+                                action,
+                                checked,
+                                cmd
                             )
                         )
                     else:
@@ -111,6 +112,13 @@ class PluginManager:
                             )
                         )
                 parent.addAction(action)
+
+    def __checkedAction(self, action: QtGui.QAction, checked, cmd):
+        self.executeCommand(
+                cmd,
+                {"checked": False}
+        )
+        action.setChecked(checked)
 
     def executeCommand(self, c, *args, **kwargs):
         command = c

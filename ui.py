@@ -119,19 +119,13 @@ class Ui_MainWindow(object):
         self.tabWidget.closeTab(i)
 
     def logConsole(self, checked=None):
-        print(checked)
-        if checked:
+        if not self.console:
             self.console = ConsoleWidget(self.MainWindow)
             self.console.textEdit.append(self.logger.log)
             self.MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, self.console)
-        elif checked == False:
-            self.console.close()
         else:
-            if not self.console:
-                self.logConsole(checked=True)
-            else:
-                self.console.deleteLater()
-                self.console = None
+            self.console.deleteLater()
+            self.console = None
 
     def settings(self):
         self.settFile = open(os.path.join(self.appPath, 'ui/Main.settings'), 'r+', encoding='utf-8')
