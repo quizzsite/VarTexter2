@@ -12,3 +12,6 @@
 /dist
 /ui.exe
 /ui.spec
+/menuCache.json
+/menuFile.json
+/test.py
