@@ -46,7 +46,6 @@ class PluginManager:
                         except Exception as e: self.__window.api.App.setLogMsg(f"Failed load menu for '{menu}' from '{info.get('menu')}': {e}")
         finally:
             os.chdir(self.dPath)
-            del self.dPath
                         
     def initPlugin(self, path):
         config = configparser.ConfigParser()
@@ -81,7 +80,6 @@ class PluginManager:
                         self.parseMenu(item['children'], menu, pl)
             else:
                 action = QtGui.QAction(item.get('caption', 'Unnamed'), self.__window)
-                self.actionCheckable = False
                 if 'shortcut' in item:
                     if not item['shortcut'] in self.shortcuts:                    
                         action.setShortcut(QtGui.QKeySequence(item['shortcut']))
@@ -89,38 +87,22 @@ class PluginManager:
                     else:
                         self.__window.api.App.setLogMsg(f"Shortcut '{item['shortcut']}' for function '{item['command']}' is already used.")
 
-
-
                 if 'command' in item:
                     args = item.get('command').get("args")
                     kwargs = item.get('command').get("kwargs")
-                    self.commands.append({"command": item['command'], "plugin": pl, "args": args, "kwargs": kwargs})
+                    self.commands.append({"action": action, "command": item['command'], "plugin": pl, "args": args, "kwargs": kwargs})
                     if 'checkable' in item:
-                        self.actionCheckable = True
                         action.setCheckable(item['checkable'])
-                        action.triggered.connect(lambda checked, cmd=item['command']: 
-                            self.__checkedAction(
-                                action,
-                                checked,
-                                cmd
-                            )
+                    action.triggered.connect(lambda checked, cmd=item['command']: 
+                        self.executeCommand(
+                            cmd,
+                            checked=checked
                         )
-                    else:
-                        action.triggered.connect(lambda checked, cmd=item['command']: 
-                            self.executeCommand(
-                                cmd
-                            )
-                        )
+                    )
                 parent.addAction(action)
 
-    def __checkedAction(self, action: QtGui.QAction, checked, cmd):
-        self.executeCommand(
-                cmd,
-                {"checked": False}
-        )
-        action.setChecked(checked)
-
     def executeCommand(self, c, *args, **kwargs):
+        ckwargs = kwargs
         command = c
         c = self.regCommands.get(command.get("command"))
         if c:
@@ -128,8 +110,17 @@ class PluginManager:
                 args = command.get("args") or args
                 kwargs = command.get("kwargs") or kwargs
                 checkable = command.get("checkable")
-
-                kwargs = kwargs if not checkable else {**kwargs, "checked": kwargs.get("checked") if kwargs.get("checked") else False}
+                action: QtGui.QAction = c.get("action")
+                if action and action.isCheckable():
+                    checked_value = ckwargs.get("checked")
+                    
+                    if checked_value is not None:
+                        action.setChecked(checked_value)
+                        print(f"Checked state set from kwargs: {checked_value}")
+                    else:
+                        new_checked_state = not action.isChecked()
+                        action.setChecked(new_checked_state)
+                        print(f"Checked state toggled: {new_checked_state}")
                 out = c.get("command")(*args or [], **kwargs or {})
                 self.__window.api.App.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
                 if out:
@@ -138,9 +129,35 @@ class PluginManager:
                 self.__window.api.App.setLogMsg(f"\nFound error in '{command}' - '{e}'.\nInfo: {c}")
         else:
             self.__window.api.App.setLogMsg(f"\nCommand '{command}' not found")
+
+    def registerShortcuts(self, data):
+        for sh in data:
+            keys = sh.get("keys")
+            command = sh.get("command")
+            cmd_name = command.get("command")
+
+            if cmd_name in self.regCommands:
+                if keys not in self.shortcuts:
+                    action = QtGui.QAction(self.__window)
+                    for key in keys:
+                        action.setShortcut(QtGui.QKeySequence(key))
+                        self.shortcuts.append(key)
+
+                    action.triggered.connect(lambda checked, cmd=command: 
+                        self.executeCommand(cmd)
+                    )
+
+                    self.__window.addAction(action)
+                    self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is registered.")
+                else:
+                    self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is already used.")
+            else:
+                self.__window.api.App.setLogMsg(f"Command '{cmd_name}' not found.")
+
     def registerCommand(self, item, pl=None):
         if item.get('command', ""):
             self.commands.append({"command": item.get('command', ""), "plugin": pl, "args": item.get('args', []), "kwargs": item.get("kwargs", {})})
+
     def registerCommands(self):
         for commandInfo in self.commands:
             command = commandInfo.get("command")
@@ -149,6 +166,7 @@ class PluginManager:
             else:
                 commandN = command.get("command")
             pl = commandInfo.get("plugin")
+            action = commandInfo.get("action")
             
             args = commandInfo.get("args", [])
             kwargs = commandInfo.get("kwargs", {})
@@ -158,6 +176,7 @@ class PluginManager:
                 try:
                     command_func = getattr(pl, commandN)
                     self.regCommands[commandN] = {
+                        "action": action,
                         "command": command_func,
                         "args": args,
                         "kwargs": kwargs,
@@ -169,6 +188,7 @@ class PluginManager:
                 command_func = getattr(self.__window, commandN, None)
                 if command_func:
                     self.regCommands[commandN] = {
+                        "action": action,
                         "command": command_func,
                         "args": args,
                         "kwargs": kwargs,
@@ -176,7 +196,7 @@ class PluginManager:
                     }
                 else:
                     self.__window.api.App.setLogMsg(f"\nCommand '{commandN}' not found")
-        del self.commands
+                    
 
     def findAction(self, parent_menu, caption=None, command=None):
         for action in parent_menu.actions():
@@ -214,6 +234,9 @@ class PluginManager:
                 if found_menu:
                     return found_menu
         return None
+
+    def clearCache(self):
+        del self.dPath, self.commands, self.shortcuts
 
 class Tab:
     def __init__(self, w):
@@ -431,6 +454,7 @@ class VtAPI:
         self.Text = Text(self.__window)
         self.SigSlots = SigSlots(self.__window)
         self.App = App(self.__window)
+        self.FSys = FSys(self.__window)
 
     def __str__(self):
         return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""

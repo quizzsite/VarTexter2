@@ -240,6 +240,7 @@ class Ui_MainWindow(object):
     def paste(self, i=None):
         tab = self.tabWidget.widget(i or self.api.Tab.currentTabIndex())
         tab.textEdit.paste()
+
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
@@ -263,18 +264,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.pl.registerCommand({"command": "setTheme"})
         self.pl.registerCommand({"command": "settingsHotKeys"})
         self.pl.registerCommand({"command": "argvParse"})
+        self.pl.registerCommand({"command": "closeTab"})
 
         if self.mb and os.path.isfile(self.mb):        self.pl.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm and os.path.isfile(self.cm):        self.pl.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
         # if self.sc and os.path.isfile(self.sc):
-        #     for shortcut in json.load(open(self.sc, "r+")):
-        #         self.api.createShortcut(shortcut)
 
         self.pl.load_plugins()
 
         self.pl.registerCommands()
+        self.pl.registerShortcuts(json.load(open(self.sc, "r+")))
 
         self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
+
+        self.pl.clearCache()
 
     def setTheme(self, theme):
         themePath = os.path.join(self.themesDir, theme)
