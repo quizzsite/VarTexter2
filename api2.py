@@ -38,12 +38,17 @@ class PluginManager:
                                 module.initAPI(self.__window.api)
                         except Exception as e: self.__window.api.App.setLogMsg(f"Failed load plugin '{info.get('name')}' commands: {e}")
                         finally: sys.path.pop(0)
-                    if info.get("menu"):
+                    if self.menuFile:
                         try:
-                            menuFile = json.load(open(info.get("menu"), "r+"))
+                            menuFile = json.load(open(self.menuFile, "r+"))
                             for menu in menuFile:
                                 self.parseMenu(menuFile.get(menu), self.__window.menuBar(), pl=module)
-                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load menu for '{menu}' from '{info.get('menu')}': {e}")
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load menu from '{info.get('menu')}': {e}")
+                    if self.scFile:
+                        try:
+                            self.registerShortcuts(json.load(open(self.scFile, "r+")))
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load shortcuts for '{info.get('name')}' from '{info.get('sc')}': {e}")
+
         finally:
             os.chdir(self.dPath)
                         
@@ -55,8 +60,7 @@ class PluginManager:
         self.version = config.get('DEFAULT', 'version', fallback='1.0')
         self.mainFile = config.get('DEFAULT', 'main', fallback='')
         self.menuFile = config.get('DEFAULT', 'menu', fallback='')
-
-        return {"name": self.name, "version": self.version, "main": self.mainFile, "menu": self.menuFile}
+        self.scFile = config.get('DEFAULT', 'sc', fallback='')
     
     def parseMenu(self, data, parent, pl=None):
         if isinstance(data, dict):
@@ -107,8 +111,8 @@ class PluginManager:
         c = self.regCommands.get(command.get("command"))
         if c:
             try:
-                args = command.get("args") or args
-                kwargs = command.get("kwargs") or kwargs
+                args = command.get("args")
+                kwargs = command.get("kwargs")
                 checkable = command.get("checkable")
                 action: QtGui.QAction = c.get("action")
                 if action and action.isCheckable():
@@ -134,27 +138,56 @@ class PluginManager:
             command = sh.get("command")
             cmd_name = command.get("command")
 
-            if cmd_name in self.regCommands:
-                if keys not in self.shortcuts:
-                    action = QtGui.QAction(self.__window)
-                    for key in keys:
-                        action.setShortcut(QtGui.QKeySequence(key))
-                        self.shortcuts.append(key)
+            if keys not in self.shortcuts:
+                action = QtGui.QAction(self.__window)
+                for key in keys:
+                    action.setShortcut(QtGui.QKeySequence(key))
+                    self.shortcuts.append(key)
 
-                    action.triggered.connect(lambda checked, cmd=command: 
-                        self.executeCommand(cmd)
-                    )
-
-                    self.__window.addAction(action)
-                    self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is registered.")
-                else:
-                    self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is already used.")
+                action.triggered.connect(lambda checked, cmd=command: 
+                    self.executeCommand(cmd)
+                )
+                self.__window.addAction(action)
+                self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is registered.")
             else:
-                self.__window.api.App.setLogMsg(f"Command '{cmd_name}' not found.")
+                self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is already used.")
 
-    def registerCommand(self, item, pl=None):
-        if item.get('command', ""):
-            self.commands.append({"command": item.get('command', ""), "plugin": pl, "args": item.get('args', []), "kwargs": item.get("kwargs", {})})
+    def registerCommand(self, commandInfo):
+        command = commandInfo.get("command")
+        if type(command) == str:
+            commandN = command
+        else:
+            commandN = command.get("command")
+        pl = commandInfo.get("plugin")
+        action = commandInfo.get("action")
+        
+        args = commandInfo.get("args", [])
+        kwargs = commandInfo.get("kwargs", {})
+
+        if pl:
+            try:
+                command_func = getattr(pl, commandN)
+                self.regCommands[commandN] = {
+                    "action": action,
+                    "command": command_func,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "plugin": pl,
+                }
+            except (ImportError, AttributeError, TypeError) as e:
+                self.__window.api.App.setLogMsg(f"\nError when registering '{commandN}' from '{pl}': {e}")
+        else:
+            command_func = getattr(self.__window, commandN, None)
+            if command_func:
+                self.regCommands[commandN] = {
+                    "action": action,
+                    "command": command_func,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "plugin": None,
+                }
+            else:
+                self.__window.api.App.setLogMsg(f"\nCommand '{commandN}' not found")
 
     def registerCommands(self):
         for commandInfo in self.commands:
@@ -195,7 +228,6 @@ class PluginManager:
                 else:
                     self.__window.api.App.setLogMsg(f"\nCommand '{commandN}' not found")
                     
-
     def findAction(self, parent_menu, caption=None, command=None):
         for action in parent_menu.actions():
             if caption and action.text() == caption:
@@ -330,14 +362,34 @@ class Text:
         cursor.setPosition(s)
         cursor.setPosition(e, QtGui.QTextCursor.MoveMode.KeepAnchor)
         tab.textEdit.setTextCursor(cursor)
+    
+    def setCompleter(self, i, completer: QtWidgets.QCompleter):
+        tab = self.__window.tabWidget.widget(i)
+        self.completer = tab.textEdit.completer = completer
+        self.completer.setWidget(tab.textEdit)
+        self.completer.insertText.connect(tab.textEdit.insertCompletion)
+    
+    def setHighlighter(self, i, hl: QtGui.QSyntaxHighlighter):
+        tab = self.__window.tabWidget.widget(i)
+        tab.textEdit.highLighter = hl
+        tab.textEdit.highLighter.setDocument(tab.textEdit.document())
 
 class Commands:
     def __init__(self, w):
         self.__window = w
+    
+    def registerCommand(self, data):
+        self.__window.pl.registerCommand(data)
 
+    def loadShortcuts(self, data):
+        self.__window.pl.registerShortcuts(data)
 class App:
     def __init__(self, w):
         self.__window = w
+        self.packagesDirs = self.__window.packageDirs
+        self.pluginsDir = self.__window.pluginsDir
+        self.themesDir = self.__window.themesDir
+        self.uiDir = self.__window.uiDir
     def openFileDialog(e=None):
         dlg = QtWidgets.QFileDialog.getOpenFileNames(None, "Open File", "", "All Files (*);;Text Files (*.txt)")
         return dlg

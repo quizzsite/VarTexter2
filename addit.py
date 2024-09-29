@@ -44,8 +44,8 @@ class ConsoleWidget(QtWidgets.QDockWidget):
                 self.window.pl.executeCommand({"command": self.lineEdit.text()})
                 self.lineEdit.clear()
     def closeEvent(self, e):
-        self.window.console = None
-        e.accept()
+        self.window.pl.executeCommand({"command": "logConsole"})
+        e.ignore()
 
 class MiniMap(QtWidgets.QTextEdit):
     def __init__(self, *args, **kwargs):
@@ -216,6 +216,7 @@ class TextEdit(QtWidgets.QTextEdit):
         self.completer.insertText.connect(self.insertCompletion)
 
         self.highLighter = StandartHighlighter(self.document())
+        self.highLighter.setDocument(self.document())
 
     def contextMenu(self, pos):
         self.mw.contextMenu.exec(self.mapToGlobal(pos))
