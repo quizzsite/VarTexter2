@@ -116,11 +116,9 @@ class PluginManager:
                     
                     if checked_value is not None:
                         action.setChecked(checked_value)
-                        print(f"Checked state set from kwargs: {checked_value}")
                     else:
                         new_checked_state = not action.isChecked()
                         action.setChecked(new_checked_state)
-                        print(f"Checked state toggled: {new_checked_state}")
                 out = c.get("command")(*args or [], **kwargs or {})
                 self.__window.api.App.setLogMsg(f"\nExecuted command '{command}' with args '{args}', kwargs '{kwargs}'")
                 if out:

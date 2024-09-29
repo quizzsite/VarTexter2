@@ -2,6 +2,10 @@ import uuid, platform, os, re
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import pyqtSlot
 
+from PyQt6.QtWidgets import QTextEdit, QCompleter
+from PyQt6.QtCore import QStringListModel, Qt
+from PyQt6.QtGui import QTextCursor, QKeyEvent
+
 class ConsoleWidget(QtWidgets.QDockWidget):
     def __init__(self, window):
         super().__init__()
@@ -161,6 +165,28 @@ class MiniMap(QtWidgets.QTextEdit):
         painter.setPen(QtGui.QColor(0, 0, 255))
         painter.drawRect(visibleRect)
 
+class StandartHighlighter(QtGui.QSyntaxHighlighter):
+    def __init__(self, document: QtGui.QTextDocument):
+        super().__init__(document)
+
+class StandartCompleter(QCompleter):
+    insertText = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent: QtWidgets.QTextEdit):
+        QCompleter.__init__(self, parent.toPlainText().split(), parent)
+        self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.highlighted.connect(self.setHighlighted)
+
+    def setHighlighted(self, text):
+        self.lastSelected = text
+
+    def getSelected(self):
+        return self.lastSelected
+
+    def updateModel(self, text: str):
+        words = list(set(text.split()))
+        self.model().setStringList(words)
+
 class TextEdit(QtWidgets.QTextEdit):
     def __init__(self, mw):
         super().__init__()
@@ -184,6 +210,12 @@ class TextEdit(QtWidgets.QTextEdit):
         self.minimapScrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.layout.addWidget(self.minimapScrollArea)
+
+        self.completer = StandartCompleter(self)
+        self.completer.setWidget(self)
+        self.completer.insertText.connect(self.insertCompletion)
+
+        self.highLighter = StandartHighlighter(self.document())
 
     def contextMenu(self, pos):
         self.mw.contextMenu.exec(self.mapToGlobal(pos))
@@ -228,6 +260,53 @@ class TextEdit(QtWidgets.QTextEdit):
                 return
 
         super(TextEdit, self).insertFromMimeData(source)
+
+    def insertCompletion(self, completion):
+        tc = self.textCursor()
+        extra = (len(completion) - len(self.completer.completionPrefix()))
+        tc.movePosition(QTextCursor.MoveOperation.Left)
+        tc.movePosition(QTextCursor.MoveOperation.EndOfWord)
+        tc.insertText(completion[-extra:])
+        self.setTextCursor(tc)
+        self.completer.popup().hide()
+
+    def focusInEvent(self, event):
+        if self.completer and not self.textCursor().hasSelection():
+            self.completer.setWidget(self)
+        QtWidgets.QTextEdit.focusInEvent(self, event)
+
+    def keyPressEvent(self, event):
+        tc = self.textCursor()
+
+        if event.key() in {
+            Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down, 
+            Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt
+        } or event.modifiers() in {Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.ShiftModifier}:
+            QtWidgets.QTextEdit.keyPressEvent(self, event)
+            return
+
+        if event.key() == Qt.Key.Key_Tab and self.completer.popup().isVisible():
+            self.completer.insertText.emit(self.completer.getSelected())
+            self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            return
+
+        QtWidgets.QTextEdit.keyPressEvent(self, event)
+
+        self.completer.updateModel(self.toPlainText())
+
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
+        cr = self.cursorRect()
+
+        if len(tc.selectedText()) > 0 and event.text().isprintable():
+            self.completer.setCompletionPrefix(tc.selectedText())
+            popup = self.completer.popup()
+            popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
+
+            cr.setWidth(self.completer.popup().sizeHintForColumn(0) 
+                        + self.completer.popup().verticalScrollBar().sizeHint().width())
+            self.completer.complete(cr)
+        else:
+            self.completer.popup().hide()
 
 class TabBar(QtWidgets.QTabBar):
     def __init__(self, tabwidget):
