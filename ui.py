@@ -260,7 +260,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.pl = PluginManager(self.pluginsDir, self)
 
-        self.api.loadThemes(self.menuBar())
         self.pl.registerCommand({"command": "setTheme"})
         self.pl.registerCommand({"command": "settingsHotKeys"})
         self.pl.registerCommand({"command": "argvParse"})
@@ -268,13 +267,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         if self.mb and os.path.isfile(self.mb):        self.pl.parseMenu(json.load(open(self.mb, "r+")), self.menuBar())
         if self.cm and os.path.isfile(self.cm):        self.pl.parseMenu(json.load(open(self.cm, "r+")), self.contextMenu)
-        # if self.sc and os.path.isfile(self.sc):
 
         self.pl.load_plugins()
-
+        self.api.loadThemes(self.menuBar())
         self.pl.registerCommands()
-        self.pl.registerShortcuts(json.load(open(self.sc, "r+")))
 
+        if self.sc and os.path.isfile(self.sc):        self.pl.registerShortcuts(json.load(open(self.sc, "r+")))
+        
         self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
 
         self.pl.clearCache()

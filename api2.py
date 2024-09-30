@@ -148,9 +148,9 @@ class PluginManager:
                     self.executeCommand(cmd)
                 )
                 self.__window.addAction(action)
-                self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is registered.")
+                self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' registered.")
             else:
-                self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' is already used.")
+                self.__window.api.App.setLogMsg(f"Shortcut '{keys}' for function '{cmd_name}' already used.")
 
     def registerCommand(self, commandInfo):
         command = commandInfo.get("command")
@@ -264,6 +264,11 @@ class PluginManager:
                 if found_menu:
                     return found_menu
         return None
+
+    def clearMenu(self, menu, menu_id):
+        menu = self.findMenu(menu, menu_id)
+        if menu:
+            menu.clear()
 
     def clearCache(self):
         del self.dPath, self.commands, self.shortcuts
@@ -431,6 +436,12 @@ class App:
         if os.path.isfile(themePath):
             self.__window.setStyleSheet(open(themePath, "r+").read())
 
+    def updateMenu(self, menu, data):
+        menu = self.__window.pl.findMenu(self.__window.menuBar(), menu)
+        if menu:
+            self.__window.pl.clearMenu(self.__window.menuBar(), menu)
+            self.__window.pl.parseMenu(menu, data)
+
 class FSys:
     def __init__(self, w):
         self.__window = w
@@ -510,23 +521,13 @@ class VtAPI:
         return f"""\n------------------------------VtAPI--version--{str(self.__version__)}------------------------------\nDocumentation:https://wtfidklol.com"""
 
     def loadThemes(self, menu):
-        if os.path.isdir(self.__window.themesDir) and os.path.isfile(self.__window.mb):
-            with open(self.__window.mb, "r+") as file:
-                try:
-                    menus = json.load(file)
-                except Exception as e:
-                    self.setLogMsg(f"Error when loading '{self.__window.mb}': {e}")
-            themeMenu = self.__window.pl.findMenu(menu, "themes")
-            if themeMenu:
-                themeMenu["children"].clear()
-                for theme in os.listdir(self.__window.themesDir):
-                    if os.path.isfile(os.path.join(self.__window.themesDir, theme)) and theme[-1:-3] == "qss":
-                        themeMenu["children"].append({"caption": theme, "command": f"setTheme {theme}"})
-                json.dump(menus, open(self.__window.mb, "w+"))
+        themeMenu = self.__window.pl.findMenu(menu, "themes")
+        if themeMenu:
+            themes = []
+            for theme in os.listdir(self.__window.themesDir):
+                if os.path.isfile(os.path.join(self.__window.themesDir, theme)) and theme[-1:-3] == "qss":
+                    themes.append({"caption": theme, "command": f"setTheme {theme}"})
+            self.App.updateMenu(themeMenu, themes)
 
     def getCommand(self, name):
         return self.__window.pl.regCommands.get(name)
-
-f = FSys("")
-a = f.PyQt6Module().QtWidgets
-print(a)
