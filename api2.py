@@ -1,5 +1,5 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
-import os, sys, configparser, json, importlib
+import os, sys, configparser, json, importlib, re
 import PyQt6
 
 def importModule(path, n):
@@ -388,6 +388,7 @@ class Commands:
 
     def loadShortcuts(self, data):
         self.__window.pl.registerShortcuts(data)
+
 class App:
     def __init__(self, w):
         self.__window = w
@@ -456,6 +457,8 @@ class FSys:
         return importlib
     def PyQt6Module(self):
         return PyQt6
+    def reModule(self):
+        return re
 
 class SigSlots(QtCore.QObject):
 

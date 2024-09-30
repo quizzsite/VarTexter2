@@ -13,84 +13,54 @@ PluginDir/
     name - Plugin - Название плагина
     varsion - 1.0 - Версия плагина
     main - plugin.py  - Файл кода плагина
-    mb - Main.mb - Верхнее меню
-    cm - Main.cm - Основное контекстное меню
-    tcm - Main.tcm - Контекстное меню тексторого редактора
+    menu - Main.vt-menu - Файл меню
     sc - Main.sc - Горячие клавиш
-    Добавляется sys.path.insert(путь до директории) - Lib/(site-packages/) - Сторонние библиотеки, используемые плагином
-
-Пример на основе плагина Googler:
-
-config.ini
-
-[DEFAULT]
-name=Googler
-version=1.0
-main=googler.py
-cm=Main.cm
-tcm=Main.tcm
-mb=Main.mb
-; sc=Main.sc Закомментировано (не используется)
-
-
-Создание меню в файлах mb, cm, tcm; горячих клавиш в sc
-Файлы поддерживают структуру json
 
 Пример файла меню
 
-[
-    { Меню
-        "caption": "Отображаемый текст",
-        "id": "menu1",
-        "children": [
+{
+    "menuBar": [
+        {
+            "id": "menu1",
+            "children": [
                 {
-                    "caption": "Другой текст",
-                    "id": "menu2",
-                    "children": []
-                }
-        ]
-    },
-    { Другое меню
-        "caption": "Текст",
-        "id": "menu3",
-        "children": [
-                {
-                    "caption": "Текст команды",
-                    "command": "command" Команда без аргументов
-                    "shortcut": "ctrl+shift+y"
+                    "caption": "Open File",
+                    "shortcut": "ctrl+o",
+                    "command": {
+                        "command": "openFile"
+                    }
                 },
                 {
-                    "caption": "Текст команды",
-                    "command": "command arg1 arg2" Команда с аргументами
+                    "caption": "Action 2",
+                    "shortcut": "ctrl+s",
+                    "checkable": true
+                    "command": {
+                        "command": "saveFile",
+                        "args": ["arg1"],
+                        "kwargs": {"arg2": "val1"}
+                    }
                 }
-        ]
-    }
-]
+            ]
+        }
+    ],
+    "textContextMenu": [],
+    "tabBarContextMenu": [],
+    "viewContextMenu": []
+}
 
 ! Элементы в меню можно добавлять из разных файлов. Для этого у двух меню должен быть один id
 
 Создание горячих клавиш
 
 [
-    { "keys": ["Сочетание клавиш"], "command": "команда", "text": "Отображаемый текст" },
-    { "keys": ["Сочетание клавиш", ["Другое сочетание"]], "command": "команда2 аргумент", "text": "Текст" }
+    { "keys": ["Сочетание клавиш"], "command": {"command": "command", "args": ["arg1"], "kwargs": {"arg2": "val1"}}, "text": "Отображаемый текст" },
+    { "keys": ["Сочетание клавиш", "Другое сочетание"], {"command": "command"}, "text": "Текст" }
 ]
 
 Динамические элементы
 
-Вставляются в формате {элемент}
-    {platform} - Платформа (Windows, Linux, OSX)
-    {basedir} - Папка программы
-    {filedir} - Папка нахождения файла (в доработке)
-    {username} - Имя пользователя
-
-
 Оформление python файла
 Зарегистрировать как команду можно ЛЮБУЮ Python функцию из плагинов либо основного приложения
-
-'name': {'command': <Вызываемая функция>, 'plugin': None} - Основное приложение
-
-'name': {'command': <Вызываемая функция>, 'plugin': <Модуль плагина>} - Плагин
 
 Для импорта сторонних команд из приложения или других плагинов необходимо подключить VtAPI. Для этого необходимо воспользоваться СТАТИЧЕСКОЙ функцией initAPI
 
@@ -98,36 +68,11 @@ def initAPI(api):
     global vtapi
     vtapi = api
 
-VtAPI команды:
- - регистрировать команду через registerCommand
- - выполнять через executeCommand
- - удалять через removeCommand
+Модули VtAPI и их функции:
 
- - добавлять горячие клавиши через createShortcut
- - удалять горячие клавиши через removeShortcut
-
- - искать меню через findMenu
- - удалять меню через removeMenu
-
- - получать список команд через getCommands
- - искать команду по названию через getCommand
-
- - добавлять свою вкладку addCustomTab
-
-Пример получения функции по названию команды
-
-vtapi.getCommand("название команды").get("command")()
-
-VtAPI сигналы представляют собой сигнал PyQt5.QtCore.pyqtSignal()
-Подключение
-
-vtapi.signal.connect(function)
-
-vtapi.signal.connect(lambda: function())
-
-VtAPI сигналы:
- - commandsLoaded - Загружены команды и окно
- - windowStarted - Стадия до загрузки GUI и плагинов
- - textChanged - На активной вкладке был изменен текст
- - tabChanged - Переключение вкладки
- - tabClosed - Закрыта вкладка. Получаемые данные: индекс закрытой вкладки, открытый файл
+ - App - функции приложения и взаимодействие с Ui
+ - Tab - взаимодействие с вкладками
+ - Text - взаимодействие с текстовым редактором
+ - FSys - импорт стандартных модулей (os, sys, re, PyQt6)
+ - Commands - добавление и изменение команд
+ - SigSlots - сигналы и слоты приложения, команды реакции на сигналы
