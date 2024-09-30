@@ -288,7 +288,7 @@ class Tab:
 
     def getTabText(self, i):
         tab = self.__window.tabWidget.widget(i)
-        text = tab.textEdit.toHtml()
+        text = tab.textEdit.toPlainText()
         return text
 
     def setTabText(self, i, text: str | None):

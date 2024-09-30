@@ -181,6 +181,7 @@ class Ui_MainWindow(object):
                         self.api.Text.setTextSelection(self.api.Tab.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
                     if tabLog.get("activeTab"):
                         self.tabWidget.setCurrentIndex(int(tabLog.get("activeTab")))
+                    if tabLog.get("splitterState"): self.treeSplitter.restoreState(tabLog.get("splitterState"))
         except ValueError:
             self.logger.log += f"\nFailed to restore window state. No file found at {stateFile}"
             open(stateFile)
@@ -196,6 +197,7 @@ class Ui_MainWindow(object):
         tabs = tabsInfo["tabs"] = {}
         i = self.api.Tab.currentTabIndex()
         tabsInfo["activeTab"] = str(i)
+        tabsInfo["splitterState"] = self.treeSplitter.saveState().data()
         stateFile = os.path.join(self.packageDirs, 'data.msgpack')
         for idx in range(self.tabWidget.count()):
             widget = self.tabWidget.widget(idx)
@@ -274,7 +276,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         if self.sc and os.path.isfile(self.sc):        self.pl.registerShortcuts(json.load(open(self.sc, "r+")))
         
-        self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
+        # self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
 
         self.pl.clearCache()
 
