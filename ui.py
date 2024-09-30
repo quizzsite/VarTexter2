@@ -113,6 +113,8 @@ class Ui_MainWindow(object):
         self.tab.textEdit.textChanged.connect(self.api.SigSlots.textChngd)
         self.tab.textEdit.document().contentsChanged.connect(self.api.SigSlots.textChngd)
 
+        self.api.SigSlots.tabCreated.emit()
+
     def closeTab(self, i: int = None):
         if not i:
             i = self.api.Tab.currentTabIndex()
@@ -176,6 +178,8 @@ class Ui_MainWindow(object):
                     for tab in tabLog.get("tabs") or []:
                         tab = tabLog.get("tabs").get(tab)
                         self.addTab(name=tab.get("name"), text=tab.get("text"), file=tab.get("file"), canSave=tab.get("canSave"))
+                        self.api.Text.rehighlite(self.api.Tab.currentTabIndex())
+                        self.api.Tab.setTabSaved(self.api.Tab.currentTabIndex(), tab.get("saved"))
                         self.api.SigSlots.textChangeEvent(self.api.Tab.currentTabIndex())
                         self.MainWindow.setWindowTitle(f"{self.MainWindow.tabWidget.tabText(self.api.Tab.currentTabIndex())} - VarTexter2")
                         self.api.Text.setTextSelection(self.api.Tab.currentTabIndex(), tab.get("selection")[0], tab.get("selection")[1])
@@ -210,6 +214,7 @@ class Ui_MainWindow(object):
                     "file": self.api.Tab.getTabFile(idx),
                     "canSave": self.api.Tab.getTabCanSave(idx),
                     "text": self.api.Tab.getTabText(idx),
+                    "saved": self.api.Tab.getTabSaved(idx),
                     "selection": [start, end],
                     "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
@@ -258,7 +263,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.textContextMenu = QtWidgets.QMenu(self)
         
         self.setupUi(self, self.argvParse())
-        self.windowInitialize()
 
         self.pl = PluginManager(self.pluginsDir, self)
 
@@ -279,6 +283,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
 
         self.pl.clearCache()
+        self.windowInitialize()
 
     def setTheme(self, theme):
         themePath = os.path.join(self.themesDir, theme)

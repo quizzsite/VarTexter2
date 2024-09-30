@@ -169,6 +169,18 @@ class StandartHighlighter(QtGui.QSyntaxHighlighter):
     def __init__(self, document: QtGui.QTextDocument):
         super().__init__(document)
 
+        self.highlightingRules = []
+        document.contentsChange.connect(self.onContentsChange)
+
+    def highlightBlock(self, text):
+        for pattern, format in self.highlightingRules:
+            for match in pattern.finditer(text):
+                start, end = match.span()
+                self.setFormat(start, end - start, format)
+
+    def onContentsChange(self, position, charsRemoved, charsAdded):
+        if charsAdded > 0:
+            self.rehighlight()
 class StandartCompleter(QCompleter):
     insertText = QtCore.pyqtSignal(str)
 

@@ -374,11 +374,14 @@ class Text:
         self.completer.setWidget(tab.textEdit)
         self.completer.insertText.connect(tab.textEdit.insertCompletion)
     
-    def setHighlighter(self, i, hl: QtGui.QSyntaxHighlighter):
+    def setHighlighter(self, i, hl):
         tab = self.__window.tabWidget.widget(i)
-        tab.textEdit.highLighter = hl
-        tab.textEdit.highLighter.setDocument(tab.textEdit.document())
+        tab.textEdit.highLighter.highlightingRules = hl
 
+    def rehighlite(self, i):
+        tab = self.__window.tabWidget.widget(i)
+        if tab:
+            tab.textEdit.highLighter.rehighlight()
 class Commands:
     def __init__(self, w):
         self.__window = w
@@ -464,6 +467,7 @@ class SigSlots(QtCore.QObject):
 
     commandsLoaded = QtCore.pyqtSignal()
     tabClosed = QtCore.pyqtSignal(int, str)
+    tabCreated = QtCore.pyqtSignal()
     tabChanged = QtCore.pyqtSignal()
     textChanged = QtCore.pyqtSignal()
     windowClosed = QtCore.pyqtSignal()
