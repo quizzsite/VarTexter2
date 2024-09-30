@@ -29,25 +29,25 @@ class PluginManager:
                 if os.path.isdir(fullPath) and os.path.isfile(f"config.ini"):
                     module = None
                     info = self.initPlugin(os.path.join(fullPath, "config.ini"))
-                    if info.get("main"):
-                        pyFile = info.get("main")
+                    if self.mainFile:
+                        pyFile = self.mainFile
                         try:
                             sys.path.insert(0, fullPath)
-                            module = importModule(pyFile, info.get("name") + "Plugin")
+                            module = importModule(pyFile, self.name + "Plugin")
                             if hasattr(module, "initAPI"):
                                 module.initAPI(self.__window.api)
-                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load plugin '{info.get('name')}' commands: {e}")
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load plugin '{self.name}' commands: {e}")
                         finally: sys.path.pop(0)
                     if self.menuFile:
                         try:
                             menuFile = json.load(open(self.menuFile, "r+"))
                             for menu in menuFile:
                                 self.parseMenu(menuFile.get(menu), self.__window.menuBar(), pl=module)
-                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load menu from '{info.get('menu')}': {e}")
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load menu from '{self.menuFile}': {e}")
                     if self.scFile:
                         try:
                             self.registerShortcuts(json.load(open(self.scFile, "r+")))
-                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load shortcuts for '{info.get('name')}' from '{info.get('sc')}': {e}")
+                        except Exception as e: self.__window.api.App.setLogMsg(f"Failed load shortcuts for '{self.name}' from '{info.get('sc')}': {e}")
 
         finally:
             os.chdir(self.dPath)
