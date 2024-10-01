@@ -367,12 +367,20 @@ class Text:
         cursor.setPosition(s)
         cursor.setPosition(e, QtGui.QTextCursor.MoveMode.KeepAnchor)
         tab.textEdit.setTextCursor(cursor)
-    
-    def setCompleter(self, i, completer: QtWidgets.QCompleter):
+
+    def getCompletePos(self, i):
         tab = self.__window.tabWidget.widget(i)
-        self.completer = tab.textEdit.completer = completer
-        self.completer.setWidget(tab.textEdit)
-        self.completer.insertText.connect(tab.textEdit.insertCompletion)
+        current_text = tab.textEdit.toPlainText()
+        cursor_position = tab.textEdit.textCursor().position()
+
+        line_number = tab.textEdit.textCursor().blockNumber()
+        line = current_text.splitlines()[line_number]
+        column = cursor_position - current_text.rfind('\n', 0, cursor_position) - 1
+        return current_text, line_number, column
+
+    def setCompleteList(self, i, lst):
+        tab = self.__window.tabWidget.widget(i)
+        self.completer = tab.textEdit.completer.updateCompletions(lst)
     
     def setHighlighter(self, i, hl):
         tab = self.__window.tabWidget.widget(i)

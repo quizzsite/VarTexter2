@@ -280,7 +280,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         if self.sc and os.path.isfile(self.sc):        self.pl.registerShortcuts(json.load(open(self.sc, "r+")))
         
-        # self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
+        self.pl.executeCommand({'command': 'setTheme', 'args': ['style.qss']})
 
         self.pl.clearCache()
         self.windowInitialize()

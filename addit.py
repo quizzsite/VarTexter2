@@ -169,23 +169,74 @@ class StandartHighlighter(QtGui.QSyntaxHighlighter):
     def __init__(self, document: QtGui.QTextDocument):
         super().__init__(document)
 
-        self.highlightingRules = []
+        self.highlightingRules = {}
         document.contentsChange.connect(self.onContentsChange)
 
     def highlightBlock(self, text):
-        for pattern, format in self.highlightingRules:
-            for match in pattern.finditer(text):
-                start, end = match.span()
-                self.setFormat(start, end - start, format)
+        for category in self.highlightingRules.keys():
+            for pattern_info in self.highlightingRules[category]:
+                pattern, index, fmt = pattern_info
+                match = pattern.match(text)  # Используйте match для поиска совпадений
+                while match.hasMatch():
+                    start = match.capturedStart()
+                    end = match.capturedEnd()
+                    self.setFormat(start, end - start, fmt)  # Установить формат
+                    match = pattern.match(text, end)  # Ищем следующее совпадение
+
+        self.setCurrentBlockState(0)
+
+        if self.highlightingRules.get("multi_line_strings"):
+            in_multiline_single = self.match_multiline(
+                text, 
+                self.highlightingRules['multi_line_strings'][0][0],  # Получаем первый разделитель
+                1, 
+                self.highlightingRules['multi_line_strings'][0][1]  # Получаем стиль для многострочных строк
+            )
+            
+            if not in_multiline_single:
+                in_multiline_double = self.match_multiline(
+                    text, 
+                    self.highlightingRules['multi_line_strings'][1][0],  # Получаем второй разделитель
+                    2, 
+                    self.highlightingRules['multi_line_strings'][1][1]  # Получаем стиль для многострочных строк
+                )
+
+    def match_multiline(self, text, delimiter, in_state, style):
+        if self.previousBlockState() == in_state:
+            start = 0
+        else:
+            match = delimiter.match(text)  # Получаем совпадение
+            if match.hasMatch():
+                start = match.capturedStart()
+            else:
+                start = -1
+
+        while start >= 0:
+            # Ищем следующее совпадение
+            match = delimiter.match(text, start)
+            if match.hasMatch():
+                end = match.capturedEnd()
+                length = end - start
+                self.setFormat(start, length, style)
+                start = end  # Переход к следующему символу после совпадения
+            else:
+                self.setCurrentBlockState(in_state)  # Сохраняем состояние блока
+                break  # Выход из цикла, если больше нет совпадений
+
+        return self.currentBlockState() == in_state
+
 
     def onContentsChange(self, position, charsRemoved, charsAdded):
         if charsAdded > 0:
             self.rehighlight()
+
 class StandartCompleter(QCompleter):
     insertText = QtCore.pyqtSignal(str)
 
     def __init__(self, parent: QtWidgets.QTextEdit):
-        QCompleter.__init__(self, parent.toPlainText().split(), parent)
+        QCompleter.__init__(self, parent)
+        self.model = QStringListModel(self)
+        self.setModel(self.model)
         self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.highlighted.connect(self.setHighlighted)
 
@@ -197,7 +248,14 @@ class StandartCompleter(QCompleter):
 
     def updateModel(self, text: str):
         words = list(set(text.split()))
-        self.model().setStringList(words)
+        self.model.setStringList(words)
+    
+    def updateCompletions(self, completions):
+        if completions:
+            self.model.setStringList(completions)
+            self.complete()
+        else:
+            self.model.setStringList([])
 
 class TextEdit(QtWidgets.QTextEdit):
     def __init__(self, mw):
@@ -232,47 +290,6 @@ class TextEdit(QtWidgets.QTextEdit):
 
     def contextMenu(self, pos):
         self.mw.contextMenu.exec(self.mapToGlobal(pos))
-
-    def canInsertFromMimeData(self, source):
-        if source.hasImage():
-            return True
-        else:
-            return super(TextEdit, self).canInsertFromMimeData(source)
-
-    def _insert_img(self, u, document, cursor):
-        image = QtGui.QImage(u.toLocalFile())
-        document.addResource(QtGui.QTextDocument.ResourceType.ImageResource, u, image)
-        cursor.insertImage(u.toLocalFile())
-
-    @property
-    def _image_folder(self):
-        path = os.path.join('cache', 'images')
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
-
-    def insertFromMimeData(self, source):
-        cursor = self.textCursor()
-        document = self.document()
-
-        if source.hasImage():
-            image = source.imageData()
-            img_path = os.path.join(self._image_folder, f'{uuid.uuid4()}.jpg')
-            image.save(os.path.join(img_path))
-            u = QtCore.QUrl('file:///' + os.path.join(os.getcwd(), img_path))
-            self._insert_img(u, document, cursor)
-            return
-        elif source.hasUrls():
-            for u in source.urls():
-                file_ext = os.path.splitext(str(u.toLocalFile()))[1].lower()
-                if u.isLocalFile() and file_ext in ['.jpg','.png','.bmp']:
-                    self._insert_img(u, document, cursor)
-                else:
-                    break
-            else:
-                return
-
-        super(TextEdit, self).insertFromMimeData(source)
 
     def insertCompletion(self, completion):
         tc = self.textCursor()
@@ -320,6 +337,17 @@ class TextEdit(QtWidgets.QTextEdit):
             self.completer.complete(cr)
         else:
             self.completer.popup().hide()
+
+    def textEdited(self, text):
+        cursor_position = self.line_edit.cursorPosition()
+        line = self.line_edit.text().splitlines()[0]  # Берем первую строку
+        column = cursor_position  # Используем текущую позицию курсора
+        
+        # Получаем дополнения из Jedi
+        completions = self.jedi_completer.get_completions(line, column)
+        
+        # Обновляем completer
+        self.completer.update_completions(completions)
 
 class TabBar(QtWidgets.QTabBar):
     def __init__(self, tabwidget):

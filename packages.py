@@ -38,5 +38,5 @@ class PackageManager:
     def search(self, name):
         pass
     
-p = PackageManager("")
+p = PackageManager("", "")
 print(p.tempname(7))
